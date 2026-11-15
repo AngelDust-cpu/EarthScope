@@ -281,7 +281,8 @@ def _number_variants(value: float) -> set[str]:
 def _assert_number_in_text(text: str, value: float | int | None) -> None:
     assert value is not None
     variants = _number_variants(float(value))
-    variants |= {variant.replace(".", ",") for variant in variants}
+    # The Russian report uses decimal commas and non-breaking group spaces.
+    variants |= {item.replace(",", "\u00a0").replace(".", ",") for item in variants}
     assert any(variant in text for variant in variants), (
         f"none of the renderings {sorted(variants)!r} of {value!r} "
         "appears in the PDF text"
@@ -614,6 +615,16 @@ def test_extremes_pdf_contains_event_counts_and_trend(
     assert json_response.status_code == 200
     payload = json_response.json()
 
+    from app import report_pdf
+    plotted = []
+    original_chart = report_pdf._time_chart
+
+    def capture_chart(lines, **kwargs):
+        plotted.append(lines)
+        return original_chart(lines, **kwargs)
+
+    monkeypatch.setattr(report_pdf, "_time_chart", capture_chart)
+
     monkeypatch.setattr(main, "load_daily", fake_load_daily)
     monkeypatch.setattr(extremes, "fit_extremes", _DescriptiveFit())
     pdf_response = client.get(
@@ -628,6 +639,9 @@ def test_extremes_pdf_contains_event_counts_and_trend(
     _assert_number_in_text(text, payload["series"][0]["events"])
     _assert_number_in_text(text, payload["series"][-1]["events"])
     _assert_number_in_text(text, payload["trend"]["per_decade"])
+    assert list(plotted[0][1].points) == [
+        (row["year"], row["fitted"]) for row in payload["series"]
+    ], "Fitted rates already use event days per 365 days"
 
 
 # ---------------------------------------------------------------------------

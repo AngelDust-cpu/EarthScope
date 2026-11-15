@@ -167,3 +167,8 @@ Episodes that cross New Year belong to the year in which they start.
 Incomplete years are excluded from yearly statistics and descriptive
 trends. See [the scientific method](docs/SCIENTIFIC_METHOD.md).
 
+
+
+## Климатический профиль · EarthScope 2.8
+
+Раздел «Климатический профиль» объединяет температуру, осадки, аномалии, сезоны и пороговые события для одной точки. Выберите точку, период, базу и пороги, затем запустите расчёт. Карта меняет выбор точки. Научные расчёты выполняются по кнопке. Подробности и ограничения описаны в [руководстве профиля](docs/CLIMATE-PROFILE.md).

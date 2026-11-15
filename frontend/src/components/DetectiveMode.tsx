@@ -22,11 +22,13 @@ import { Button } from './ui/button'
 import { Field, Select, TextInput } from './ui/field'
 import { Alert } from './ui/feedback'
 import { DetectiveReportContext } from './PdfDownloadButton'
+import { ProfileMode } from './ProfileMode'
 
-type Question = 'temperature' | 'precipitation' | 'compare' | 'anomalies' | 'seasonal' | 'extremes' | 'heatwaves'
+type Question = 'temperature' | 'precipitation' | 'compare' | 'anomalies' | 'seasonal' | 'extremes' | 'heatwaves' | 'profile'
 type ClimateResult = Awaited<ReturnType<typeof fetchAnomalies>> | Awaited<ReturnType<typeof fetchSeasonal>> | Awaited<ReturnType<typeof fetchExtremes>> | HeatwavesResponse
 const steps = ['Вопрос', 'Координаты', 'Период', 'Результаты']
 const questions = [
+  { value: 'profile', title: 'Как менялся климат моего региона?', description: 'Единый профиль: температура, осадки, аномалии, сезоны и пороговые события.', icon: CalendarDays },
   { value: 'temperature', title: 'Изменение температуры', description: 'Узнайте, как менялась температура в выбранной точке.', icon: Thermometer },
   { value: 'precipitation', title: 'Изменение осадков', description: 'Исследуйте, как менялось количество осадков в выбранной точке.', icon: CloudRain },
   { value: 'compare', title: 'Сравнение регионов', description: 'Сравните изменения температуры или осадков в точках A и B.', icon: GitCompareArrows },
@@ -201,6 +203,8 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
   const currentTrend = current && 'trend' in current && !('event' in current) ? current : null
   const explanations = currentComparison ? interpretComparison(currentComparison)
     : currentTrend ? interpretTrend(currentTrend) : []
+
+  if (question === 'profile') return <DetectiveReportContext.Provider value={true}><ProfileMode active={active} coverage={coverage} detective onExit={newInvestigation} /></DetectiveReportContext.Provider>
 
   return <main id="detective-workspace" tabIndex={-1} hidden={!active} className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6">
     <div>

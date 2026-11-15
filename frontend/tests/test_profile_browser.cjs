@@ -1,0 +1,70 @@
+// Real NASA POWER browser smoke plus explicitly intercepted error/stale-response tests.
+// Requires playwright and Chromium/Edge, with this worktree's API and Vite running.
+const assert = require('node:assert/strict');
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch({ executablePath: process.env.EARTHSCOPE_BROWSER_EXECUTABLE || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  const errors = [], profileRequests = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (request.url().includes('/api/climate-profile?')) profileRequests.push(request.url()); });
+  await page.goto(process.env.EARTHSCOPE_TEST_URL || 'http://127.0.0.1:5188/');
+  await page.getByRole('button', { name: 'Климатический профиль', exact: true }).click();
+  const workspace = page.locator('#profile-workspace');
+  const launch = workspace.getByRole('button', { name: 'Составить климатический профиль', exact: true });
+  await launch.waitFor();
+  await page.waitForFunction(() => !document.querySelector('#profile-workspace button[type=submit]').disabled);
+  const map = workspace.locator('.leaflet-container');
+  await map.evaluate(node => { window.profileMapNode = node; });
+  await workspace.getByRole('button', { name: 'Рейкьявик', exact: true }).click();
+  await map.click({ position: { x: 200, y: 150 } });
+  assert.equal(profileRequests.length, 0, 'Map/preset must not request analysis');
+  assert.equal(await map.evaluate(node => node === window.profileMapNode), true);
+  await workspace.getByRole('button', { name: 'Бишкек, Кыргызстан', exact: true }).click();
+  for (const [label, value] of [['Первый год','2015'],['Последний год','2020'],['Начало базы','2015'],['Конец базы','2020']]) await workspace.getByLabel(label, { exact: true }).fill(value);
+  const responsePromise = page.waitForResponse(r => r.url().includes('/api/climate-profile?') && r.request().headers().accept === 'application/json', { timeout: 240000 });
+  await launch.click();
+  const response = await responsePromise;
+  assert.equal(response.status(), 200);
+  const real = await response.json();
+  for (const key of ['temperature','precipitation','anomalies','seasonal','hot_days','cold_nights','heavy_rain']) assert.equal(real.sections[key].status, 'ok', key);
+  assert.equal(real.sections.heatwaves.status, 'unavailable');
+  await workspace.getByRole('heading', { name: 'Что удалось выяснить', exact: true }).waitFor();
+  assert.ok((await workspace.innerText()).includes('Самые тёплые годы среди доступных'));
+  for (const [name, suffix] of [['Скачать единый CSV','.csv'],['Скачать единый PDF-профиль','.pdf']]) {
+    const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
+    await workspace.getByRole('button', { name, exact: true }).click();
+    const download = await downloadPromise;
+    assert.ok(download.suggestedFilename().endsWith(suffix));
+    assert.equal(await download.failure(), null);
+    if (process.env.EARTHSCOPE_EVIDENCE_DIR) await download.saveAs(`${process.env.EARTHSCOPE_EVIDENCE_DIR}/profile-live${suffix}`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Mobile horizontal overflow');
+  if (process.env.EARTHSCOPE_EVIDENCE_DIR) await page.screenshot({path:`${process.env.EARTHSCOPE_EVIDENCE_DIR}/profile-mobile.png`,fullPage:true});
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  if (process.env.EARTHSCOPE_EVIDENCE_DIR) await page.screenshot({path:`${process.env.EARTHSCOPE_EVIDENCE_DIR}/profile-desktop.png`,fullPage:true});
+  // Explicit simulated partial failure uses the successful NASA response as its base.
+  const partial = structuredClone(real);
+  partial.sections.hot_days = { status:'error', data:null, message:'SIMULATED TEST: upstream timeout' };
+  await page.route('**/api/climate-profile?*', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(partial)}));
+  await launch.click();
+  await workspace.getByText('SIMULATED TEST: upstream timeout', {exact:false}).first().waitFor();
+  assert.ok(await workspace.getByRole('heading', {name:'Температура',exact:true}).isVisible());
+  await page.unroute('**/api/climate-profile?*');
+  await page.getByRole('button',{name:'Детектив',exact:true}).click();
+  await page.getByRole('button',{name:/Как менялся климат моего региона/}).click();
+  const detective = page.locator('#detective-workspace:visible');
+  await detective.getByRole('button',{name:'Далее',exact:true}).click();
+  let release;
+  const delayed = new Promise(resolve => { release=resolve; });
+  await page.route('**/api/climate-profile?*',async route=> { await delayed; await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(real)}).catch(()=>{}); });
+  await detective.getByRole('button',{name:'Составить климатический профиль',exact:true}).click();
+  await detective.getByRole('button',{name:'Новое исследование',exact:true}).click();
+  release();
+  await page.getByRole('button',{name:/Как менялся климат моего региона/}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Что удалось выяснить',exact:true}).isVisible().catch(()=>false),false);
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({real_sections:7,exports:['csv','pdf'],mobile_width:390,partial_error:'passed',detective_stale_reset:'passed',page_errors:errors}));
+  await browser.close();
+})().catch(error => { console.error(error); process.exit(1); });

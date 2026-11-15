@@ -536,7 +536,8 @@ _EVENT_DEFINITION = {
 
 
 def _period_name(period: str) -> str:
-    return _SEASON_LABEL.get(period) or _MONTH_LABEL.get(period) or period
+    label = _SEASON_LABEL.get(period) or _MONTH_LABEL.get(period)
+    return f"{label} ({period})" if label else period
 
 
 def _kind_title(kind: str) -> str:
@@ -1849,7 +1850,7 @@ def _story_extremes(model: ExtremesResponse) -> list[Any]:
     fitted = [
         (
             point.year,
-            None if point.fitted is None else point.fitted * 365.0,
+            point.fitted,
         )
         for point in model.series
     ]
@@ -2147,12 +2148,15 @@ def _metadata(kind: str, model: Any) -> tuple[str, str]:
             f"NASA POWER {model.parameter}, {model.unit}, архив {model.version}",
         )
     if kind == "compare":
-        point = model.point_a
-        return (f"EarthScope: {_kind_title(kind)}", f"{_VARIABLE_LABEL[point.variable]}; {point.start_year}–{point.end_year}; NASA POWER")
-    variable = _EVENT_LABEL[model.event] if kind == "extremes" else _VARIABLE_LABEL[model.variable]
+        variable = _VARIABLE_LABEL[model.point_a.variable]
+    elif kind == "extremes":
+        variable = _EVENT_LABEL[model.event]
+    else:
+        variable = _VARIABLE_LABEL[model.variable]
+    period = model.point_a if kind == "compare" else model
     return (
         f"EarthScope: {_kind_title(kind)}",
-        f"{variable}; {model.start_year}–{model.end_year}; NASA POWER",
+        f"{variable}; {period.start_year}–{period.end_year}; NASA POWER",
     )
 
 
