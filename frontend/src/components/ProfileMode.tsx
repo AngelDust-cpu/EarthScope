@@ -90,15 +90,15 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
       aria-invalid={!fieldValid(name)} onChange={event => edit(name, event.target.value)}
       onBlur={name === 'latitude' || name === 'longitude' ? commit : undefined} />
   </Field>
-  return <section hidden={!active} id={detective ? 'detective-workspace' : 'profile-workspace'} tabIndex={-1} className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6">
-    <div className="space-y-2">
+  return <section hidden={!active} id={detective ? 'detective-workspace' : 'profile-workspace'} tabIndex={-1} className="research-profile space-y-5">
+    {detective && <div className="space-y-2">
       <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold">{detective ? `Детектив · ${steps[step]}` : 'Климатический профиль'}</h2>
       <p className="max-w-3xl text-sm text-muted">Как менялся климат моего региона? Один запуск: температура, осадки, аномалии относительно выбранной базы, сезоны и пороговые события. Это не прогноз.</p>
-      {detective && <><ol aria-label="Шаги исследования" className="flex flex-wrap gap-3 text-sm"><li>1. Вопрос</li>{steps.map((label, i) => <li key={label} aria-current={i === step ? 'step' : undefined}>{i + 2}. {label}</li>)}</ol>
-        <Button type="button" variant="outline" onClick={() => { cancel(); onExit?.() }}>Новое исследование</Button></>}
-    </div>
-    <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
-      <form noValidate onSubmit={event => { event.preventDefault(); if (detective && step === 0) { if (pointValid) { commit(); setStep(1) } } else void run() }} className="min-w-0 space-y-5">
+      <ol aria-label="Шаги исследования" className="research-step-list text-sm"><li>1. Вопрос</li>{steps.map((label, i) => <li key={label} aria-current={i === step ? 'step' : undefined}>{i + 2}. {label}</li>)}</ol>
+      <Button type="button" variant="outline" onClick={() => { cancel(); onExit?.() }}>Новое исследование</Button>
+    </div>}
+    <div className={detective ? 'grid min-w-0 items-start gap-5' : 'point-workbench'}>
+      <form hidden={detective && step === 2} noValidate onSubmit={event => { event.preventDefault(); if (detective && step === 0) { if (pointValid) { commit(); setStep(1) } } else void run() }} className="research-profile-form min-w-0 space-y-4">
         <fieldset hidden={detective && step !== 0} className="min-w-0 space-y-3">
           <legend className="mb-2 font-medium">Точка · WGS84, градусы</legend>
           <div className="grid grid-cols-2 gap-2">{input('latitude', 'Широта')}{input('longitude', 'Долгота')}</div>
@@ -111,11 +111,12 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
             <Button type="button" variant="outline" size="sm" onClick={() => { setFields(old => ({ ...old, baseline_start_year: '1991', baseline_end_year: '2020' })); setCancelled(false) }}>База 1991–2020</Button>
             <p className="text-xs text-muted">Аномалия — отклонение от среднего базы, не оценка редкости. Неполная база может не позволить рассчитать аномалии.</p>
           </fieldset>
-          <fieldset className="space-y-3"><legend className="mb-2 font-medium">Фиксированные абсолютные пороги</legend>
+          <details className="profile-disclosure"><summary className="text-sm font-medium">Пороги экстремумов</summary>
+          <fieldset className="space-y-3"><legend className="sr-only">Фиксированные абсолютные пороги</legend>
             {input('hot_threshold', 'Жаркие дни: Tmax > порога, °C', 'От −100 до +100 °C. Не волны жары.')}
             {input('cold_threshold', 'Холодные ночи: Tmin < порога, °C', 'От −100 до +100 °C; суточный минимум, не почасовые ночные данные.')}
             {input('rain_threshold', 'Сильные осадки: > порога, мм/сут', 'От 0 до 2000 мм/сут.')}
-          </fieldset>
+          </fieldset></details>
           {coverage.data && <p className="text-xs text-muted">Доступно {coverage.data.min_year}–{coverage.data.max_year}; анализ — не менее {coverage.data.min_years} лет. База в этих же границах; начало не позже конца.</p>}
           {!valid && coverage.data && <p role="alert" className="text-xs">Проверьте координаты, годы, базу и допустимые пороги. Анализ не запущен.</p>}
         </div>
@@ -125,12 +126,12 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
         {coverage.error && <Alert tone="error" title="Не удалось проверить период" action={<Button type="button" variant="outline" onClick={coverage.retry}>Повторить проверку периода</Button>}>{displayError(coverage.error)}</Alert>}
         <p className="text-xs text-muted">Клик на карте и пресеты меняют только точку. Запрос отправляется только по кнопке.</p>
       </form>
-      <div className="min-w-0 space-y-5">
-        <div hidden={detective && step !== 0} className="min-w-0">
-          {active && <LocationMap selection={point.coordinates} onSelect={p => select(p)} focusRequest={focus} describedBy={`${id}-map-hint`} className="h-[300px] w-full sm:h-[440px]" />}
-          <p id={`${id}-map-hint`} className="mt-2 text-xs text-muted">Для клавиатуры используйте координаты или пресеты. Масштаб не сбрасывается при выборе точки.</p>
+        <div hidden={detective && step !== 0} className="point-map min-w-0">
+          <div className="point-map-header"><h2>Точка исследования</h2><span className="font-mono text-xs">WGS84</span></div>
+          {active && <LocationMap selection={point.coordinates} onSelect={p => select(p)} focusRequest={focus} describedBy={`${id}-map-hint`} className="point-map-viewport" />}
+          <p id={`${id}-map-hint`} className="point-map-hint">Выберите точку на карте, введите координаты или используйте пресет.</p>
         </div>
-        <div hidden={detective && step !== 2} aria-label="Результаты климатического профиля" className="min-w-0 space-y-4">
+        <div hidden={detective && step !== 2} aria-label="Результаты климатического профиля" className="point-results space-y-4">
           <div role="status" className="text-sm">
             {state.loading ? <p>Собираем профиль NASA POWER… {submitted && `${submitted.start_year}–${submitted.end_year} UTC · ${submitted.latitude}, ${submitted.longitude}°`} Можно отменить.</p>
               : cancelled ? <p>Анализ отменён. Текущего ответа нет.</p>
@@ -141,7 +142,6 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
           {current && active && (!detective || step === 2) && <ProfileResults key={savedKey} data={current} coverage={coverage.data} />}
           {detective && !state.loading && !state.error && <Button type="button" disabled={!valid} onClick={() => void run()}>Повторить анализ</Button>}
         </div>
-      </div>
     </div>
     {detective && <Button type="button" variant="outline" onClick={() => { if (controller.current) cancel(); if (step === 0) onExit?.(); else setStep(step - 1) }}>Назад</Button>}
   </section>

@@ -1,7 +1,7 @@
 import { ApiError, type Variable } from './types'
 
 const app = {
-  brand: 'EarthScope 2.8',
+  brand: 'EarthScope 3.0',
   subtitle: 'Климатические тенденции по данным NASA',
   skip: 'Перейти к результатам',
   controls: 'Параметры анализа',

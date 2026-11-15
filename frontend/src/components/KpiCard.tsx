@@ -16,12 +16,12 @@ export function KpiCard({ label, value, unit, caption, featured = false }: KpiCa
   return (
     <div
       className={cn(
-        'flex min-w-0 flex-col gap-2 rounded border border-line bg-card p-4',
-        featured && 'border-t-focus',
+        'flex min-w-0 flex-col gap-2 rounded-lg border border-line bg-panel p-4',
+        featured && 'border-t-focus bg-card',
       )}
     >
-      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">{label}</span>
-      <p className={cn('flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-lg font-medium leading-tight tabular-nums tracking-tight text-ink', featured && 'text-2xl')}>
+      <span className="text-xs font-medium text-muted">{label}</span>
+      <p className={cn('flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-semibold leading-tight tabular-nums tracking-tight text-ink', featured && 'text-3xl')}>
         {value}
         {unit ? <span className="text-xs font-normal text-muted">{unit}</span> : null}
       </p>

@@ -19,7 +19,7 @@ const validPoint = (p: Point) => Number.isFinite(decimal(p.latitude)) && Math.ab
 export function ExtremesMode({ active }: { active: boolean }) {
   const [submode, setSubmode] = useState<'days' | 'heatwaves'>('days')
   return <div hidden={!active}>
-    <div className="mx-auto flex max-w-[1600px] flex-wrap gap-2 px-4 pb-3 sm:px-6" role="group" aria-label="Вид экстремальных событий">
+    <div className="research-segments" role="group" aria-label="Вид экстремальных событий">
       <Button type="button" variant="outline" aria-pressed={submode === 'days'} onClick={() => setSubmode('days')}>Отдельные дни</Button>
       <Button type="button" variant="outline" aria-pressed={submode === 'heatwaves'} onClick={() => setSubmode('heatwaves')}>Волны жары</Button>
     </div>
@@ -78,17 +78,17 @@ function DailyExtremesMode({ active }: { active: boolean }) {
     }
   }
   if (!active) return null
-  return <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)] items-start lg:grid-cols-[20rem_minmax(0,1fr)]">
-    <section aria-labelledby={`${id}-map`} className="min-w-0 border-b border-line p-4 sm:p-6 lg:col-start-2 lg:row-start-1">
-      <h2 id={`${id}-map`} className="mb-3 font-semibold">1. Точка {compare ? selected : 'A'} · WGS84</h2>
+  return <div className="point-workbench">
+    <section aria-labelledby={`${id}-map`} className="point-map">
+      <h2 id={`${id}-map`} className="point-map-header font-semibold">1. Точка {compare ? selected : 'A'} · WGS84</h2>
       <LocationMap selection={validPoint(current) ? numeric(current) : BISHKEK}
         onSelect={p => change(point(p))} focusRequest={focus}
         selectionLabel={compare ? selected : undefined}
         otherSelection={compare && validPoint(selected === 'A' ? b : a) ? { ...numeric(selected === 'A' ? b : a), label: selected === 'A' ? 'B' : 'A' } : undefined}
-        describedBy={`${id}-map-hint`} className="h-[300px] w-full sm:h-[390px] lg:h-[440px]" />
-      <p id={`${id}-map-hint`} className="mt-2 text-xs text-muted">Клик меняет только выбранную точку. {ru.app.mapHint} Координаты можно ввести с клавиатуры. { !validPoint(current) && 'Ввод некорректен: карта временно показывает Бишкек.'}</p>
+        describedBy={`${id}-map-hint`} className="point-map-viewport" />
+      <p id={`${id}-map-hint`} className="point-map-hint">Клик меняет только выбранную точку. {ru.app.mapHint} Координаты можно ввести с клавиатуры. { !validPoint(current) && 'Ввод некорректен: карта временно показывает Бишкек.'}</p>
     </section>
-    <aside aria-label="Параметры экстремальных событий" className="min-w-0 border-b border-line bg-panel p-4 sm:p-5 lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:border-r">
+    <aside aria-label="Параметры экстремальных событий" className="point-controls">
       <form onSubmit={run} noValidate className="space-y-5">
         <h2 className="font-semibold">Погодные экстремумы</h2>
         <p className="text-xs text-muted">Сколько дней пересекают выбранный абсолютный порог и как меняется их частота? Данные загружаются только по кнопке.</p>
@@ -137,7 +137,7 @@ function DailyExtremesMode({ active }: { active: boolean }) {
         {loading && <Button type="button" variant="outline" onClick={cancel}>Отменить запрос</Button>}
       </form>
     </aside>
-    <main id="extremes-workspace" tabIndex={-1} aria-busy={loading} className="min-w-0 space-y-4 p-4 sm:p-6 lg:col-start-2 lg:row-start-2">
+    <main id="extremes-workspace" tabIndex={-1} aria-busy={loading} className="point-results space-y-4">
       <h2 className="text-xl font-semibold">Результаты · Погодные экстремумы</h2>
       <div role="status" className="space-y-2 text-sm text-secondary">
         {loading && <p>Загружаем суточный ряд NASA POWER. Параметры зафиксированы при запуске. {saved && 'Ниже — предыдущий результат.'}</p>}

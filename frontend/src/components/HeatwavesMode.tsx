@@ -40,8 +40,8 @@ export function HeatwavesMode({ active }: { active: boolean }) {
     } finally { if (request.current === pending) { request.current = null; setLoading(false) } }
   }
   if (!active) return null
-  return <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)] items-start lg:grid-cols-[20rem_minmax(0,1fr)]">
-    <aside className="min-w-0 border-b border-line bg-panel p-4 sm:p-5 lg:row-span-2 lg:border-r" aria-label="Параметры волн жары">
+  return <div className="point-workbench">
+    <aside className="point-controls" aria-label="Параметры волн жары">
       <form onSubmit={run} noValidate className="space-y-4">
         <h2 className="font-semibold">Волны жары</h2>
         <p className="text-xs text-muted">Стали ли волны жары чаще и продолжительнее? Найдите серии жарких суток, а не отдельные жаркие дни. Запрос — только по кнопке.</p>
@@ -61,11 +61,12 @@ export function HeatwavesMode({ active }: { active: boolean }) {
         {loading && <Button type="button" variant="outline" onClick={cancel}>Отменить запрос</Button>}
       </form>
     </aside>
-    <section className="min-w-0 border-b border-line p-4 sm:p-6" aria-label="Точка волн жары">
-      <LocationMap selection={validPoint ? query : BISHKEK} onSelect={setPoint} focusRequest={focus} describedBy={`${id}-map-hint`} className="h-[300px] w-full sm:h-[390px]" />
-      <p id={`${id}-map-hint`} className="mt-2 text-xs text-muted">{ru.app.mapHint} Для клавиатуры — поля координат или пресеты. {!validPoint && 'Ввод некорректен: карта временно показывает Бишкек.'}</p>
+    <section className="point-map" aria-label="Точка волн жары">
+      <h2 className="point-map-header font-semibold">Точка исследования · WGS84</h2>
+      <LocationMap selection={validPoint ? query : BISHKEK} onSelect={setPoint} focusRequest={focus} describedBy={`${id}-map-hint`} className="point-map-viewport" />
+      <p id={`${id}-map-hint`} className="point-map-hint">{ru.app.mapHint} Для клавиатуры — поля координат или пресеты. {!validPoint && 'Ввод некорректен: карта временно показывает Бишкек.'}</p>
     </section>
-    <main id="extremes-workspace" tabIndex={-1} aria-busy={loading} className="min-w-0 space-y-4 p-4 sm:p-6 lg:col-start-2">
+    <main id="extremes-workspace" tabIndex={-1} aria-busy={loading} className="point-results space-y-4">
       <h2 className="text-xl font-semibold">Результаты · Волны жары</h2>
       <div role="status" className="text-sm">
         {loading && <p>Загружаем суточные данные NASA POWER. {saved && 'Ниже — предыдущий результат.'}</p>}

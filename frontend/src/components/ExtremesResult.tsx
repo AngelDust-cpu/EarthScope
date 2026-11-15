@@ -13,7 +13,7 @@ const plural = (n: number, one: string, few: string, many: string) => {
   return lastTwo >= 11 && lastTwo <= 14 ? many : last === 1 ? one : last >= 2 && last <= 4 ? few : many
 }
 const days = (n: number) => `${number(n, 0)} ${plural(n, 'день', 'дня', 'дней')}`
-const panel = 'min-w-0 space-y-3 rounded border border-line bg-card p-4'
+const panel = 'min-w-0 space-y-3 rounded-lg border border-line bg-panel p-4 sm:p-5'
 
 /** Shared standalone / Detective presentation; all values come from the submitted response. */
 export function ExtremesResult({ data }: { data: ExtremesResponse }) {
@@ -111,7 +111,7 @@ export function ExtremesResult({ data }: { data: ExtremesResponse }) {
               : p.events === 0
                 ? <circle cx={x} cy="230" r="2.5" fill="currentColor" opacity={active ? 1 : .6} pointerEvents="none" />
                 : <rect x={56 + width * (i + .18)} y={230 - height} width={width * .64}
-                  height={Math.max(1, height)} fill="currentColor" opacity={active ? 1 : .6} pointerEvents="none" />}
+                  height={Math.max(1, height)} rx="2" fill={active ? 'var(--chart-active)' : 'var(--chart-events)'} pointerEvents="none" />}
             {(showAllLabels || active) && <text data-year-label={p.year} x={x} y={p.events === null ? 208 : 222 - height}
               textAnchor="middle" fill="currentColor" fontSize="12" fontWeight={active ? 'bold' : 'normal'} pointerEvents="none">{label}</text>}
           </g>

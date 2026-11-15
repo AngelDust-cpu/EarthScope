@@ -206,18 +206,18 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
 
   if (question === 'profile') return <DetectiveReportContext.Provider value={true}><ProfileMode active={active} coverage={coverage} detective onExit={newInvestigation} /></DetectiveReportContext.Provider>
 
-  return <main id="detective-workspace" tabIndex={-1} hidden={!active} className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6">
+  return <main id="detective-workspace" tabIndex={-1} hidden={!active} className="research-detective space-y-5">
     <div>
       <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold">Детектив · {steps[step]}</h2>
       <p className="mt-2 text-sm text-muted">Выберите вопрос, место и период — получите ответ по данным NASA POWER с графиком и ограничениями. Это не прогноз.</p>
-      <ol aria-label="Шаги исследования" className="mt-3 flex flex-wrap gap-3 text-sm">
+      <ol aria-label="Шаги исследования" className="research-step-list mt-3 text-sm">
         {steps.map((label, i) => <li key={label} aria-current={step === i ? 'step' : undefined} className={step === i ? 'font-semibold text-ink' : 'text-muted'}>{i + 1}. {label}</li>)}
       </ol>
       {step > 0 && <Button type="button" variant="outline" className="mt-3" onClick={newInvestigation}>Новое исследование</Button>}
     </div>
-    <section hidden={step !== 0} className="max-w-xl space-y-4">
-      <fieldset className="min-w-0 space-y-3">
-        <legend className="mb-2 font-semibold">Что будем исследовать?</legend>
+    <section hidden={step !== 0} className="space-y-4">
+      <fieldset className="research-questions min-w-0">
+        <legend className="mb-3 font-semibold">Что будем исследовать?</legend>
         {questions.map(({ value, title, description, icon: Icon }) =>
           <Button key={value} type="button" variant="outline"
             aria-labelledby={`detective-question-${value}`}

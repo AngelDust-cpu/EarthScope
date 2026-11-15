@@ -19,7 +19,8 @@ function AnnualSummary({ data }: { data: TrendResponse }) {
   const t = data.trend
   const unit = data.variable === 'temperature' ? '°C' : 'мм'
   return <div className="space-y-2 text-sm">
-    <p>{data.variable === 'temperature' ? 'Среднее годовых температур' : 'Средняя годовая сумма'}: <strong>{formatValue(mean, data.unit)}</strong> · полных лет {count}/{data.end_year - data.start_year + 1}.</p>
+    <p><span className="text-muted">{data.variable === 'temperature' ? 'Среднее годовых температур' : 'Средняя годовая сумма'}</span><strong className="profile-metric-value">{formatValue(mean, data.unit)}</strong></p>
+    <p className="text-xs text-muted">Полных лет {count}/{data.end_year - data.start_year + 1}</p>
     {t ? <><p>Тренд МНК: <strong>{n(t.per_decade)} {unit} за десятилетие</strong> · 95% ДИ [{n(t.ci95_low)}; {n(t.ci95_high)}] · p = {pValue(t.p_value)} · лет в модели: {t.years_used}.</p>
       <p className="text-xs text-muted">{t.significant ? 'Модель указывает на ненулевой тренд при α = 0,05.' : 'Изменение не подтверждено при α = 0,05; это не доказательство отсутствия изменений.'}</p></>
       : <p>Недостаточно полных лет для тренда.</p>}
@@ -28,7 +29,7 @@ function AnnualSummary({ data }: { data: TrendResponse }) {
 function Disclosure({ title, children }: { title: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   return <details className={panel} onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary className="cursor-pointer rounded py-2 font-medium focus-visible:outline-2 focus-visible:outline-focus">{title} · графики, таблицы и источник</summary>
+    <summary className="cursor-pointer rounded py-2 font-medium focus-visible:outline-2 focus-visible:outline-focus">{title}</summary>
     {open && <div className="min-w-0 pt-3">{children}</div>}
   </details>
 }
@@ -55,9 +56,9 @@ export function ProfileResults({ data, coverage }: { data: ProfileResponse; cove
   const s = data.sections
   const annual = (result: TrendResponse) => <DashboardBody coverage={coverage} state={{ data: result, error: null, loading: false }} metaDescription="NASA POWER · сеточные данные · полные календарные годы UTC" onRetry={() => {}} />
   return <div className="min-w-0 space-y-4">
-    <section className={panel}>
+    <section className="profile-overview space-y-3">
       <h3 className="text-lg font-semibold">Что удалось выяснить</h3>
-      <p className="text-sm">{data.start_year}–{data.end_year} UTC · WGS84: {formatCoordinate(data.latitude)}, {formatCoordinate(data.longitude)}° · база {data.baseline_start_year}–{data.baseline_end_year}</p>
+      <p className="font-mono text-sm">{data.start_year}–{data.end_year} UTC · {formatCoordinate(data.latitude)}°, {formatCoordinate(data.longitude)}° · база {data.baseline_start_year}–{data.baseline_end_year}</p>
       <p className="text-xs text-muted">Фиксированные пороги: Tmax &gt; {data.thresholds.hot_days} °C; Tmin &lt; {data.thresholds.cold_nights} °C; осадки &gt; {data.thresholds.heavy_rain} мм/сут.</p>
       <p className="text-sm">NASA POWER — сеточный продукт, не измерение метеостанции и не прогноз. Средние ниже рассчитаны только по полным годам; пропуски не заменяются нулями.</p>
       <div className="flex flex-wrap items-start gap-2 pt-2">
@@ -67,10 +68,12 @@ export function ProfileResults({ data, coverage }: { data: ProfileResponse; cove
       </div>
       <p role={csvError ? 'alert' : 'status'} className="text-xs text-muted">{csvMessage}</p>
       <p className="text-xs text-muted">Экспорт повторно рассчитывает профиль с теми же параметрами по доступным данным и кэшу NASA POWER. При обновлении источника значения могут отличаться от показанных. В файле сохраняются источник и время загрузки.</p>
-      {data.summary.length > 0 && <ul className="list-disc space-y-1 pl-5 text-sm">{data.summary.map((text, i) => <li key={i}>{text}</li>)}</ul>}
+      {data.summary.length > 0 && <details className="profile-disclosure"><summary className="text-sm">Научная сводка</summary>
+        <ul className="list-disc space-y-1 pl-5 pb-2 text-sm">{data.summary.map((text, i) => <li key={i}>{text}</li>)}</ul>
+      </details>}
     </section>
-    <div className="grid min-w-0 gap-3 md:grid-cols-2">
-      {(['temperature', 'precipitation'] as const).map(key => <section className={panel} key={key}>
+    <div className="profile-metrics">
+      {(['temperature', 'precipitation'] as const).map(key => <section className="space-y-3" key={key}>
         <h4 className="font-semibold">{profileLabels[key]}</h4>
         {s[key].status === 'ok' && s[key].data ? <AnnualSummary data={s[key].data} /> : <p className="text-sm">{s[key].status === 'error' ? 'Ошибка раздела.' : 'Раздел недоступен.'} {s[key].message}</p>}
       </section>)}
@@ -115,6 +118,7 @@ export function ProfileResults({ data, coverage }: { data: ProfileResponse; cove
       <p className="text-xs text-muted">Пороги абсолютные, не локальные процентили. ДИ и p зависят от предположений модели; отдельные тренды не доказывают различий между сезонами и не устанавливают причины изменений. Неподтверждённый тренд не означает отсутствия изменений.</p>
       {data.limitations.length > 0 && <details><summary className="cursor-pointer py-2 text-sm focus-visible:outline-2 focus-visible:outline-focus">Все ограничения сервиса ({data.limitations.length})</summary><ul className="list-disc space-y-1 pl-5 text-sm">{data.limitations.map((text, i) => <li key={i}>{text}</li>)}</ul></details>}
     </section>
+    <h3 className="text-base font-semibold">Графики, таблицы и источники</h3>
     {profileKeys.filter(key => key !== 'heatwaves').map(key => {
       const section = s[key]
       if (section.status !== 'ok' || !section.data) return key === 'temperature' || key === 'precipitation' || key === 'hot_days' || key === 'cold_nights' || key === 'heavy_rain' ? null

@@ -11,7 +11,7 @@ import { Button } from './ui/button'
 const c = ru.climate
 const periodLabel = (period: string) => c.periods[period as keyof typeof c.periods] ?? period
 const number = (value: number | null) => value === null ? '—' : formatCoordinate(value, 2)
-const panel = 'min-w-0 space-y-3 rounded border border-line bg-card p-4'
+const panel = 'min-w-0 space-y-3 rounded-lg border border-line bg-panel p-4 sm:p-5'
 type Common = AnomalyResponse | SeasonalResponse
 
 function csv(data: Common, headings: string[], rows: (string | number | null)[][]): string {
@@ -60,7 +60,7 @@ function ValueChart({ points, unit, label }: { points: { year: number; value: nu
   const y = (value: number) => 220 - (value - low) / span * 180
   const width = 640 / Math.max(1, points.length)
   return <div className="min-w-0">
-    <svg viewBox="0 0 740 270" role="img" aria-labelledby={id} className="w-full">
+    <svg viewBox="0 0 740 270" role="img" aria-labelledby={id} className="science-plot w-full">
       <title id={id}>{label}. {unitLabel(unit)}. Нулевая линия отмечена пунктиром; точные значения и пропуски в таблице ниже.</title>
       <text x="5" y="20" fill="currentColor" fontSize="13">{unitLabel(unit)}</text>
       <text x="5" y="43" fill="currentColor" fontSize="12">{number(high)}</text>
@@ -70,7 +70,7 @@ function ValueChart({ points, unit, label }: { points: { year: number; value: nu
       {points.map((p, i) => p.value === null ? null : <rect key={p.year}
         x={70 + width * i + width * .15} width={width * .7}
         y={Math.min(y(0), y(p.value))} height={Math.max(1, Math.abs(y(p.value) - y(0)))}
-        fill="currentColor" opacity={p.value < 0 ? .45 : .85}>
+        fill={p.value < 0 ? 'var(--chart-negative)' : 'var(--chart-positive)'}>
         <title>{p.year}: {number(p.value)} {unitLabel(unit)}</title>
       </rect>)}
       <text x="70" y="250" fill="currentColor" fontSize="13">{points[0]?.year}</text>

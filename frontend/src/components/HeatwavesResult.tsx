@@ -11,7 +11,7 @@ const metrics = [
   { key: 'total_days', title: 'Дни в волнах жары', unit: 'дней' },
   { key: 'max_duration', title: 'Максимальная длительность', unit: 'дней' },
 ] as const
-const panel = 'min-w-0 space-y-3 rounded border border-line bg-card p-4'
+const panel = 'min-w-0 space-y-3 rounded-lg border border-line bg-panel p-4 sm:p-5'
 
 export function HeatwavesResult({ data }: { data: HeatwavesResponse }) {
   const id = useId()
@@ -62,13 +62,13 @@ export function HeatwavesResult({ data }: { data: HeatwavesResponse }) {
               <figcaption className="text-sm font-medium">{title}, {unit}</figcaption>
               <svg viewBox="0 0 360 220" role="img" aria-label={`${title} по годам UTC. Точные значения в таблице ниже.`} className="w-full">
                 <title>{title}: × — неполный год, точка на оси — ноль</title>
-                {[0, .5, 1].map(v => <g key={v}><line x1="52" x2="332" y1={175 - v * 140} y2={175 - v * 140} stroke="currentColor" opacity=".2" /><text x="46" y={179 - v * 140} textAnchor="end" fill="currentColor" fontSize="11">{fmt(v * max)}</text></g>)}
+                {[...new Set([0, Math.round(max / 2), max])].map(tick => <g key={tick}><line x1="52" x2="332" y1={175 - tick / max * 140} y2={175 - tick / max * 140} stroke="currentColor" opacity=".2" /><text x="46" y={179 - tick / max * 140} textAnchor="end" fill="currentColor" fontSize="11">{tick}</text></g>)}
                 {data.series.map((p, i) => {
                   const x = 52 + (i + .5) * step, value = p[key]
                   return <g key={p.year}><title>{p.year}: {value === null ? 'неполный год' : `${value} ${unit}`}</title>
                     {value === null ? <text x={x} y="170" textAnchor="middle" fontSize="12" fill="currentColor">×</text> : value === 0 ?
                       <circle cx={x} cy="175" r="2" fill="currentColor" /> :
-                      <rect x={x - step * .34} y={175 - 140 * value / max} width={step * .68} height={140 * value / max} fill="currentColor" opacity={p.year === selected?.year ? 1 : .55} />}
+                      <rect x={x - step * .34} y={175 - 140 * value / max} width={step * .68} height={140 * value / max} rx="1.5" fill={p.year === selected?.year ? 'var(--chart-active)' : 'var(--chart-events)'} />}
                   </g>
                 })}
                 <text x="52" y="198" fill="currentColor" fontSize="12">{data.series[0]?.year}</text>

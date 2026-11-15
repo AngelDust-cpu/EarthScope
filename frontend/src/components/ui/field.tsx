@@ -6,7 +6,7 @@ export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLab
   return (
     <label
       className={cn(
-        'font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted',
+        'text-xs font-medium text-secondary',
         className,
       )}
       {...props}
@@ -27,10 +27,15 @@ export function Field({
   children: React.ReactNode
   className?: string
 }) {
+  const linkedChild = hint && React.isValidElement<{ 'aria-describedby'?: string }>(children)
+    ? React.cloneElement(children, {
+      'aria-describedby': [children.props['aria-describedby'], `${htmlFor}-hint`].filter(Boolean).join(' '),
+    })
+    : children
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
+      {linkedChild}
       {hint ? (
         <p id={`${htmlFor}-hint`} className="text-xs text-muted">
           {hint}
@@ -41,7 +46,7 @@ export function Field({
 }
 
 export const inputClassName =
-  'h-11 w-full rounded border border-control bg-base px-3 font-mono text-base text-ink tabular-nums outline-none transition-colors placeholder:text-muted focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 sm:h-10 sm:text-sm'
+  'h-11 w-full rounded-md border border-control bg-base px-3 font-mono text-base text-ink tabular-nums outline-none transition-colors placeholder:text-muted hover:border-muted focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus aria-invalid:border-rose-300/80 disabled:opacity-50 sm:h-10 sm:text-sm'
 
 export const TextInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
@@ -60,7 +65,7 @@ export function Select({
       <select
         className={cn(
           inputClassName,
-          'cursor-pointer appearance-none bg-base pr-9 [&>option]:bg-base [&>option]:text-ink',
+          'cursor-pointer appearance-none bg-base pr-9 font-sans [&>option]:bg-base [&>option]:text-ink',
           className,
         )}
         {...props}

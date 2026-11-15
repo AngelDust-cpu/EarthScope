@@ -89,14 +89,14 @@ export function ClimateMode({ active, mode, coverage }: Props) {
 
   if (!active) return null
   return <div>
-    <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)] items-start lg:grid-cols-[20rem_minmax(0,1fr)]">
-      <section aria-labelledby={`${id}-map`} className="min-w-0 border-b border-line p-4 sm:p-6 lg:col-start-2 lg:row-start-1">
-        <h2 id={`${id}-map`} className="mb-3 font-semibold">1. Выберите точку</h2>
+    <div className="point-workbench">
+      <section aria-labelledby={`${id}-map`} className="point-map">
+        <h2 id={`${id}-map`} className="point-map-header font-semibold">1. Выберите точку</h2>
         <LocationMap selection={point.coordinates} onSelect={p => select(p.latitude, p.longitude)} focusRequest={focus}
-          describedBy={`${id}-map-hint`} className="h-[300px] w-full sm:h-[390px] lg:h-[440px]" />
-        <p id={`${id}-map-hint`} className="mt-2 text-xs text-muted">{ru.app.mapHint}</p>
+          describedBy={`${id}-map-hint`} className="point-map-viewport" />
+        <p id={`${id}-map-hint`} className="point-map-hint">{ru.app.mapHint}</p>
       </section>
-      <aside aria-label="Параметры климатического анализа" className="min-w-0 border-b border-line bg-panel p-4 sm:p-5 lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:border-r">
+      <aside aria-label="Параметры климатического анализа" className="point-controls">
         <form onSubmit={run} noValidate className="space-y-5">
           <h2 className="font-semibold">{ru.app.modes[mode]}</h2>
           <p className="text-xs text-muted">{mode === 'anomalies' ? 'Сравните каждый год с выбранной базой.' : 'Исследуйте сезонные и месячные изменения в одной точке.'} Данные загружаются только по кнопке.</p>
@@ -153,7 +153,7 @@ export function ClimateMode({ active, mode, coverage }: Props) {
           {coverage.error && <div role="alert" className="text-xs"><p>{displayError(coverage.error)}</p><Button type="button" variant="outline" onClick={coverage.retry}>Повторить проверку периода</Button></div>}
         </form>
       </aside>
-      <main id="climate-workspace" tabIndex={-1} aria-busy={loading} className="min-w-0 space-y-4 p-4 sm:p-6 lg:col-start-2 lg:row-start-2">
+      <main id="climate-workspace" tabIndex={-1} aria-busy={loading} className="point-results space-y-4">
         <h2 className="text-xl font-semibold">Результаты · {ru.app.modes[mode]}</h2>
         <div role="status" className="space-y-2 text-sm text-secondary">
           {loading && <p>Загружаем суточный ряд NASA POWER… Параметры запроса зафиксированы при запуске.{saved && ' Ниже — предыдущий результат.'}</p>}

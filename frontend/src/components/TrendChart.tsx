@@ -8,9 +8,10 @@ import type { SeriesPoint, Variable } from '../lib/types'
 
 const FONT = 'IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace'
 const AXIS = '#a9b0b8'
-const GRID = '#303640'
-const SERIES = '#dce2e8'
-const FIT = '#7da7d8'
+const GRID = '#2a313a'
+const SERIES = '#e7eaee'
+const FIT = '#86afd9'
+const SECOND_SERIES = '#e5a35e'
 
 export interface TrendChartProps {
   series: SeriesPoint[]
@@ -52,8 +53,8 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
         yhoverformat: ',.2f',
         customdata: series.map((point) => point.valid_days),
         hovertemplate: `%{x}: %{y:,.2f} ${displayUnit}<br>${ru.chart.validDays}: %{customdata}<extra></extra>`,
-        line: { color: SERIES, width: 1.8, shape: 'linear' },
-        marker: { color: SERIES, size: 6, line: { color: '#111418', width: 1 } },
+        line: { color: SERIES, width: 2, shape: 'linear' },
+        marker: { color: SERIES, size: 5, line: { color: '#111418', width: 1 } },
         connectgaps: false,
       },
     ]
@@ -81,19 +82,19 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
         type: 'scatter', mode: 'lines+markers', name: 'B · годовые значения',
         x: comparisonSeries.map(point => point.year), y: comparisonSeries.map(point => point.value),
         hovertemplate: `B · %{x}: %{y:,.2f} ${displayUnit}<extra></extra>`,
-        line: { color: '#e5a35e', width: 1.8, dash: 'dot' },
-        marker: { color: '#e5a35e', size: 6, symbol: 'diamond' }, connectgaps: false,
+        line: { color: SECOND_SERIES, width: 2, dash: 'dot' },
+        marker: { color: SECOND_SERIES, size: 5, symbol: 'diamond' }, connectgaps: false,
       })
       traces.push({
         type: 'scatter', mode: 'lines', name: `B · ${ru.chart.fit}`,
         x: comparisonSeries.map(point => point.year), y: comparisonSeries.map(point => point.fitted),
         hovertemplate: `B · ${ru.chart.fit} · %{x}: %{y:,.2f} ${displayUnit}<extra></extra>`,
-        line: { color: '#e5a35e', width: 2, dash: 'dashdot' }, connectgaps: false,
+        line: { color: SECOND_SERIES, width: 2, dash: 'dashdot' }, connectgaps: false,
       })
     }
 
     const layout: Partial<Layout> = {
-      margin: { l: 55, r: 14, t: 35, b: 44 },
+      margin: { l: 51, r: 16, t: 74, b: 49 },
       autosize: true,
       separators: ', ',
       paper_bgcolor: 'rgba(0,0,0,0)',
@@ -103,13 +104,15 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
       legend: {
         orientation: 'h',
         x: 0,
-        y: 1.12,
+        y: 1.02,
+        yanchor: 'bottom',
         font: { size: 11, color: AXIS },
         bgcolor: 'rgba(0,0,0,0)',
       },
       xaxis: {
         title: { text: ru.chart.year, font: { size: 11, color: AXIS }, standoff: 12 },
         tickformat: 'd',
+        automargin: true,
         gridcolor: GRID,
         zeroline: false,
         linecolor: GRID,
@@ -122,6 +125,7 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
       yaxis: {
         title: { text: `${anomaly ? 'Аномалия, ' : ''}${displayUnit}`, font: { size: 11, color: AXIS }, standoff: 12 },
         range: yRange,
+        automargin: true,
         gridcolor: GRID,
         zeroline: false,
         linecolor: GRID,
@@ -159,7 +163,7 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
     })
     void Plotly.react(element, traces, layout, config).then(() => {
       if (active) observer.observe(element)
-    })
+    }).catch(() => {})
     return () => {
       active = false
       observer.disconnect()
