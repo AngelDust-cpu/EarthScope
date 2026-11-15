@@ -5,6 +5,8 @@ import type { AsyncState } from '../hooks/useAsyncData'
 import { fetchCompare, fetchTrend } from '../lib/api'
 import { fetchAnomalies, fetchSeasonal } from '../lib/climate'
 import { fetchExtremes } from '../lib/extremes'
+import { fetchHeatwaves, type HeatwavesResponse } from '../lib/heatwaves'
+import { HeatwavesResult } from './HeatwavesResult'
 import type { ExtremesResponse } from '../lib/extremes'
 import { interpretComparison, interpretTrend } from '../lib/detective'
 import { formatCoordinate, formatValue } from '../lib/format'
@@ -21,8 +23,8 @@ import { Field, Select, TextInput } from './ui/field'
 import { Alert } from './ui/feedback'
 import { DetectiveReportContext } from './PdfDownloadButton'
 
-type Question = 'temperature' | 'precipitation' | 'compare' | 'anomalies' | 'seasonal' | 'extremes'
-type ClimateResult = Awaited<ReturnType<typeof fetchAnomalies>> | Awaited<ReturnType<typeof fetchSeasonal>> | Awaited<ReturnType<typeof fetchExtremes>>
+type Question = 'temperature' | 'precipitation' | 'compare' | 'anomalies' | 'seasonal' | 'extremes' | 'heatwaves'
+type ClimateResult = Awaited<ReturnType<typeof fetchAnomalies>> | Awaited<ReturnType<typeof fetchSeasonal>> | Awaited<ReturnType<typeof fetchExtremes>> | HeatwavesResponse
 const steps = ['Вопрос', 'Координаты', 'Период', 'Результаты']
 const questions = [
   { value: 'temperature', title: 'Изменение температуры', description: 'Узнайте, как менялась температура в выбранной точке.', icon: Thermometer },
@@ -31,6 +33,7 @@ const questions = [
   { value: 'anomalies', title: 'Какие годы были необычно тёплыми или холодными?', description: 'Сравните среднюю температуру каждого года с базовым периодом.', icon: Waves },
   { value: 'seasonal', title: 'Какой сезон меняется сильнее всего?', description: 'Сопоставьте оценки трендов четырёх календарных сезонов.', icon: CalendarDays },
   { value: 'extremes', title: 'Стало ли больше экстремально жарких дней?', description: 'Посчитайте дни, когда суточный максимум выше выбранного порога.', icon: Thermometer },
+  { value: 'heatwaves', title: 'Стали ли волны жары чаще и продолжительнее?', description: 'Найдите серии жарких суток и сравните число и длительность эпизодов по годам начала.', icon: Thermometer },
 ] as const
 
 function AnomalyAnswer({ data }: { data: Awaited<ReturnType<typeof fetchAnomalies>> }) {
@@ -72,6 +75,7 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
   const [step, setStep] = useState(0)
   const [start, setStart] = useState(1990), [end, setEnd] = useState(2025)
   const [heatLimit, setHeatLimit] = useState('30')
+  const [minDuration, setMinDuration] = useState('3')
   const [baselineStart, setBaselineStart] = useState('1991')
   const [baselineEnd, setBaselineEnd] = useState('2020')
   const [focus, setFocus] = useState(0)
@@ -84,10 +88,11 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
   const heading = useRef<HTMLHeadingElement>(null)
   const previousStep = useRef(step)
   const isCompare = question === 'compare'
-  const isClimate = question === 'anomalies' || question === 'seasonal' || question === 'extremes'
+  const isClimate = question === 'anomalies' || question === 'seasonal' || question === 'extremes' || question === 'heatwaves'
   const threshold = /^[+\-−]?(?:\d+([.,]\d*)?|[.,]\d+)$/.test(heatLimit.trim())
     ? Number(heatLimit.replace(',', '.').replace('−', '-')) : NaN
-  const thresholdValid = Number.isFinite(threshold) && Math.abs(threshold) <= 100
+  const thresholdValid = Number.isFinite(threshold) && (question === 'heatwaves' || Math.abs(threshold) <= 100)
+  const durationValid = /^\d+$/.test(minDuration) && Number.isSafeInteger(Number(minDuration)) && Number(minDuration) >= 1
   const selectedVariable: Variable = isCompare || question === 'seasonal' ? variable : question === 'precipitation' ? question : 'temperature'
   const baselineValid = /^\d{4}$/.test(baselineStart) && /^\d{4}$/.test(baselineEnd) &&
     Number(baselineStart) >= (coverage.data?.min_year ?? 1981) &&
@@ -95,7 +100,8 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
   const selected = isCompare && point === 'B' ? b : a
   const key = JSON.stringify([question, selectedVariable, a.coordinates, isCompare ? b.coordinates : null, start, end,
     ...(question === 'anomalies' ? [baselineStart, baselineEnd] : []),
-    ...(question === 'extremes' ? [heatLimit] : [])])
+    ...(question === 'extremes' || question === 'heatwaves' ? [heatLimit] : []),
+    ...(question === 'heatwaves' ? [minDuration] : [])])
   const state = isClimate ? climate : isCompare ? compare : trend
   const loading = trend.loading || compare.loading || climate.loading
   const result = question ? saved[question] : undefined
@@ -128,6 +134,7 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
     setStart(1990)
     setEnd(2025)
     setHeatLimit('30')
+    setMinDuration('3')
     setBaselineStart('1991')
     setBaselineEnd('2020')
     setFocus(0)
@@ -145,7 +152,8 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
 
   async function run() {
     if (request.current || !coverage.data || !question || (question === 'anomalies' && !baselineValid) ||
-      (question === 'extremes' && !thresholdValid)) return
+      ((question === 'extremes' || question === 'heatwaves') && !thresholdValid) ||
+      (question === 'heatwaves' && !durationValid)) return
     const controller = new AbortController()
     request.current = controller
     setStep(3)
@@ -158,7 +166,9 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
         const query = { ...a.coordinates, variable: selectedVariable, startYear: start, endYear: end }
         const data = question === 'anomalies'
           ? await fetchAnomalies({ ...query, baselineStartYear: Number(baselineStart), baselineEndYear: Number(baselineEnd) }, { signal: controller.signal })
-          : question === 'seasonal'
+            : question === 'heatwaves'
+              ? await fetchHeatwaves({ ...query, threshold, minDuration: Number(minDuration) }, { signal: controller.signal })
+            : question === 'seasonal'
             ? await fetchSeasonal({ ...query, period: 'all' }, { signal: controller.signal })
             : await fetchExtremes({ ...query, event: 'hot_days', threshold }, { signal: controller.signal })
         if (controller.signal.aborted || request.current !== controller) return
@@ -241,8 +251,11 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
             <Field htmlFor="detective-baseline-end" label="Конец базы"><TextInput id="detective-baseline-end" inputMode="numeric" value={baselineEnd} onChange={e => setBaselineEnd(e.target.value)} /></Field>
             {!baselineValid && <p role="alert" className="text-sm text-warning">Проверьте границы базового периода.</p>}
           </fieldset>}
-          {question === 'extremes' && step === 2 && <Field htmlFor="detective-heat-limit" label="Порог жары, °C" hint="Учитываются только дни строго выше порога. Допустимо от −100 до +100 °C.">
+          {(question === 'extremes' || question === 'heatwaves') && step === 2 && <Field htmlFor="detective-heat-limit" label="Порог жары, °C" hint={question === 'heatwaves' ? 'Суточная Tmax строго выше порога; конечное число.' : 'Учитываются только дни строго выше порога. Допустимо от −100 до +100 °C.'}>
             <TextInput id="detective-heat-limit" inputMode="decimal" value={heatLimit} aria-invalid={!thresholdValid} onChange={e => setHeatLimit(e.target.value)} />
+          </Field>}
+          {question === 'heatwaves' && step === 2 && <Field htmlFor="detective-heat-duration" label="Минимум суток подряд" hint="Целое число ≥1. Поиск через 31 декабря; статистика — по году начала. Внешние границы окна могут обрезать эпизоды.">
+            <TextInput id="detective-heat-duration" inputMode="numeric" value={minDuration} aria-invalid={!durationValid} onChange={e => setMinDuration(e.target.value)} />
           </Field>}
           <ControlPanel stage={step === 1 ? 'coordinates' : 'period'} onContinue={() => setStep(2)}
             coverage={coverage.data} coverageError={coverage.error} coordinates={selected.coordinates}
@@ -251,7 +264,8 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
             startYear={start} endYear={end} onRangeChange={(first, last) => { setStart(first); setEnd(last) }}
             onPreset={p => { selected.applyPreset(p); setFocus(n => n + 1) }}
             loading={loading} submitDisabled={(question === 'anomalies' && !baselineValid) ||
-              (question === 'extremes' && !thresholdValid)} onSubmit={() => void run()} />
+              ((question === 'extremes' || question === 'heatwaves') && !thresholdValid) ||
+              (question === 'heatwaves' && !durationValid)} onSubmit={() => void run()} />
           {step === 2 && current && <Button variant="outline" onClick={() => setStep(3)}>Открыть сохранённый ответ</Button>}
           {coverage.loading && <p role="status" className="text-sm text-muted">Проверяем доступный период…</p>}
           {coverage.error && <Button variant="outline" onClick={coverage.retry}>Повторить проверку периода</Button>}
@@ -286,6 +300,25 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
         {current && 'baseline_mean' in current && <><AnomalyAnswer data={current} /><AnomalyResult data={current} /></>}
         {current && 'periods' in current && <SeasonalResult data={current} />}
         {current && 'event' in current && <><HeatAnswer data={current} /><ExtremesResult data={current} /></>}
+        {current && 'episodes' in current && <>
+          <section className="rounded border border-line bg-card p-4 text-sm">
+            <h3 className="mb-2 font-semibold">Что удалось выяснить</h3>
+            <ul className="mb-2 list-disc pl-5">
+              {([
+                ['count', 'Число эпизодов', 'эпизодов'],
+                ['total_days', 'Суммарная длительность', 'дней'],
+                ['max_duration', 'Максимальная длительность', 'дней'],
+              ] as const).map(([metric, label, unit]) => {
+                const slope = current.trends[metric]?.per_decade
+                return <li key={metric}>{label} · {slope === undefined ? 'оценка недоступна'
+                  : `${slope.toLocaleString('ru-RU', { maximumFractionDigits: 3, signDisplay: 'exceptZero' })} ${unit}/десятилетие`}</li>
+              })}
+            </ul>
+            <p>Это описательные наклоны. Статистическая значимость не оценивалась.</p>
+            <p>Порог {current.threshold} °C, минимум {current.min_duration} суток подряд. Оцениваются годы начала эпизодов; границы окна могут обрезать эпизоды.</p>
+          </section>
+          <HeatwavesResult data={current} />
+        </>}
       </> : isCompare ? <ComparisonBody state={{ ...compare, data: currentComparison }} onRetry={coverage.error ? coverage.retry : () => void run()} />
         : <DashboardBody coverage={coverage.data} state={{ ...trend, data: currentTrend }}
           metaDescription="NASA POWER · сеточный реанализ · полные календарные годы UTC" onRetry={coverage.error ? coverage.retry : () => void run()} />}

@@ -29,6 +29,11 @@ Design notes
 * **Reproducibility.**  The document carries no wall-clock timestamp.  Provenance
   timing comes from the payload's ``retrieved_at`` and the canvas is built with
   ``invariant=True``, so the same payload yields byte-identical PDFs.
+* **Extensions.**  ``heatwaves`` is not one of the six core kinds in
+  :data:`KINDS`: :func:`render_report` delegates it to
+  :func:`app.heatwave_report.render_heatwave_pdf`, which validates with
+  :class:`app.heatwaves.HeatwaveResponse` and reuses this module's font, style,
+  table and canvas helpers.  The core kinds and their contracts stay unchanged.
 
 Public interface::
 
@@ -61,7 +66,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     HRFlowable,
-    KeepTogether,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -69,7 +73,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from .global_map import PARAMETERS, YEARS
+from .global_map import GRID_SHAPE, PARAMETERS, YEARS
 from .schemas import (
     AnomalyResponse,
     CompareResponse,
@@ -195,6 +199,10 @@ _WORLD_UNIT_BY_PARAMETER: dict[str, str] = {
 }
 _WORLD_YEAR_MIN = min(YEARS)
 _WORLD_YEAR_MAX = max(YEARS)
+# Cell centres in global_map.cell_result span the full sphere inclusively, so the
+# spacing is the span divided by the number of gaps between centres.
+_WORLD_LAT_STEP = 180.0 / (GRID_SHAPE[0] - 1)
+_WORLD_LON_STEP = 360.0 / (GRID_SHAPE[1] - 1)
 
 
 class WorldCellPoint(BaseModel):
@@ -389,13 +397,11 @@ def _register_fonts(candidates: Sequence[tuple[str, str]] | None = None) -> None
         )
 
 
-# --- Russian formatting helpers ------------------------------------------
-def _ru(text: str) -> str:
-    return text.replace(".", ",")
-
-
+# --- Number formatting ----------------------------------------------------
+# Numbers use a dot decimal separator and comma group separator, which is what
+# the API emits.  Rounding is display-only; no statistic is recomputed.
 def _num(value: float | None, digits: int = 2) -> str:
-    """Format a number with a decimal comma and non-breaking group spaces."""
+    """Format a finite statistic, or an em dash when it is not available."""
 
     if value is None:
         return "—"
@@ -404,18 +410,18 @@ def _num(value: float | None, digits: int = 2) -> str:
     if value == 0:
         value = 0.0
     if abs(value) >= 1e7:
-        return _ru(f"{value:.{digits}e}")
-    text = f"{value:,.{digits}f}"
-    integer, _, fraction = text.partition(".")
-    integer = integer.replace(",", "\u00a0")
-    return f"{integer},{fraction}"
+        return f"{value:.{digits}e}"
+    if abs(value) < 10.0**-digits:
+        # Do not print a nonzero estimate as "0.00"; keep its magnitude.
+        return f"{value:.{max(digits, 2)}e}"
+    return f"{value:,.{digits}f}"
 
 
 def _p_text(p: float | None) -> str:
     if p is None:
         return "—"
     if p < 0.001:
-        return "< 0,001"
+        return "<0.001"
     return _num(p, 3)
 
 
@@ -423,10 +429,6 @@ def _ci_text(low: float | None, high: float | None) -> str:
     if low is None or high is None:
         return "—"
     return f"[{_num(low)}; {_num(high)}]"
-
-
-def _clusive(value: float) -> int:
-    return int(round(value))
 
 
 def _significant_text(significant: bool | None) -> str:
@@ -473,13 +475,13 @@ def _year_ranges(years: Sequence[int]) -> str:
 
 
 _VARIABLE_LABEL = {
-    "temperature": "температура воздуха (T2M)",
-    "precipitation": "атмосферные осадки (PRECTOTCORR)",
+    "temperature": "температура воздуха (temperature, T2M)",
+    "precipitation": "атмосферные осадки (precipitation, PRECTOTCORR)",
 }
 
 _AGGREGATION_LABEL = {
-    "mean": "среднее суточных значений",
-    "sum": "сумма суточных значений",
+    "mean": "среднее суточных значений (mean)",
+    "sum": "сумма суточных значений (sum)",
 }
 
 _SLOPE_UNIT = {
@@ -493,14 +495,14 @@ _ANOMALY_UNIT = {
 }
 
 _SEASON_LABEL = {
-    "winter": "зима (DJF)",
-    "spring": "весна (MAM)",
-    "summer": "лето (JJA)",
-    "autumn": "осень (SON)",
+    "winter": "зима (winter, DJF)",
+    "spring": "весна (spring, MAM)",
+    "summer": "лето (summer, JJA)",
+    "autumn": "осень (autumn, SON)",
 }
 
 _MONTH_LABEL = {
-    f"m{month:02d}": name
+    f"m{month:02d}": f"{name} ({f'm{month:02d}'})"
     for month, name in enumerate(
         (
             "январь",
@@ -562,7 +564,10 @@ def _kind_subtitle(kind: str) -> str:
 
 
 # --- Paragraph styles -----------------------------------------------------
+@lru_cache(maxsize=1)
 def _styles() -> dict[str, ParagraphStyle]:
+    """Paragraph styles built once; they only reference font names, not files."""
+
     return {
         "brand": ParagraphStyle(
             "brand",
@@ -687,8 +692,9 @@ def _link(key: str, text: str, style: ParagraphStyle) -> Paragraph:
     """Build a hyperlink from the constant whitelist only."""
 
     url = TRUSTED_LINKS[key]
+    href = escape(url, {'"': "&quot;"})
     return Paragraph(
-        f'<link href="{escape(url, {chr(34): "&quot;"})}" color="#1f4e79">{escape(text)}</link>',
+        f'<link href="{href}" color="#1f4e79">{escape(text)}</link>',
         style,
     )
 
@@ -1191,6 +1197,185 @@ def _trend_footnote(trend: TrendStats | None) -> list[Any]:
     return notes
 
 
+def _detective_block(kind: str, model: Any) -> list[Any]:
+    """Short template narration used by the ``X-EarthScope-Report: detective`` route.
+
+    It restates validated fields only: the estimated sign, the exact p-value and
+    the strict threshold, plus the caveat that this is not proof of absence or
+    cause.  Nothing is recomputed.
+    """
+
+    style = _styles()
+    lines: list[str] = []
+    if kind == "trend":
+        trend = model.trend
+        if trend is None:
+            lines.append(
+                "Тренд не рассчитан: полных лет меньше пяти, поэтому направление "
+                "изменения по этому ряду не определяется."
+            )
+        else:
+            if trend.per_decade > 0:
+                direction = "положительный (значения растут)"
+            elif trend.per_decade < 0:
+                direction = "отрицательный (значения убывают)"
+            else:
+                direction = "нулевой по точечной оценке"
+            lines.append(
+                f"Наклон {direction}: {_num(trend.per_decade)} "
+                f"{_SLOPE_UNIT.get(model.unit, 'за 10 лет')} по {trend.years_used} "
+                "полным годам."
+            )
+            if trend.significant:
+                lines.append(
+                    f"p = {_p_text(trend.p_value)} < 0.05: при допущениях МНК данных "
+                    "достаточно для ненулевого линейного тренда; это не доказывает "
+                    "причину изменений."
+                )
+            else:
+                lines.append(
+                    f"p = {_p_text(trend.p_value)} ≥ 0.05: доказательств ненулевого "
+                    "тренда недостаточно. Это не доказывает, что изменений нет."
+                )
+    elif kind == "compare":
+        difference = model.comparison.slope_difference_per_decade
+        if difference is None:
+            lines.append(
+                "Разница наклонов не рассчитана: общих полных лет меньше пяти."
+            )
+        else:
+            relation = (
+                "быстрее в точке A"
+                if difference > 0
+                else "быстрее в точке B"
+                if difference < 0
+                else "одинаково по точечной оценке"
+            )
+            lines.append(
+                f"A − B = {_num(difference)} "
+                f"{_SLOPE_UNIT.get(model.point_a.unit, 'за 10 лет')}: по знаку "
+                f"изменение {relation}, на {model.comparison.years_used} общих "
+                "полных годах."
+            )
+        lines.append(
+            "Это описательная разница: интервал и p-значение для неё не "
+            "рассчитываются, а сравнение двух отдельных p-значений не является "
+            "тестом различия."
+        )
+    elif kind == "anomalies":
+        if model.baseline_mean is None:
+            lines.append(
+                "Базовое среднее не рассчитано: хотя бы один базовый год неполный, "
+                "поэтому аномалии отсутствуют."
+            )
+        else:
+            lines.append(
+                f"База {model.baseline_start_year}–{model.baseline_end_year}: "
+                f"среднее {_num(model.baseline_mean)} {model.unit} по "
+                f"{model.baseline_complete_years} полным годам."
+            )
+        lines.append(
+            "Аномалия — разность годового значения и базового среднего; это не "
+            "тренд, не процент и не норма ВМО, если период короче 30 лет."
+        )
+    elif kind == "seasonal":
+        for entry in model.periods:
+            if entry.trend is None:
+                lines.append(
+                    f"{_period_name(entry.period)}: тренд не рассчитан (меньше пяти "
+                    "полных окон)."
+                )
+                continue
+            direction = (
+                "рост"
+                if entry.trend.per_decade > 0
+                else "снижение"
+                if entry.trend.per_decade < 0
+                else "нулевая оценка"
+            )
+            lines.append(
+                f"{_period_name(entry.period)}: {direction}, "
+                f"{_num(entry.trend.per_decade)} {model.unit} за 10 лет, "
+                f"p = {_p_text(entry.trend.p_value)}."
+            )
+        lines.append(
+            "Сезоны и месяцы проверяются отдельно, без поправки на множественные "
+            "сравнения; ранжирование наклонов не является тестом различий."
+        )
+    elif kind == "extremes":
+        trend = model.trend
+        lines.append(
+            f"Событие «{_EVENT_LABEL[model.event]}» при пороге "
+            f"{_num(model.threshold)} {model.threshold_unit} "
+            f"(оператор {model.operator}, строгое неравенство)."
+        )
+        if trend is None:
+            lines.append(
+                "Тренд частоты не рассчитан: полных лет меньше пяти."
+            )
+        else:
+            direction = (
+                "частота растёт"
+                if trend.per_decade > 0
+                else "частота снижается"
+                if trend.per_decade < 0
+                else "частота без изменения по точечной оценке"
+            )
+            lines.append(
+                f"{direction}: {_num(trend.per_decade)} дней на 365 суток за 10 лет "
+                f"по {trend.years_used} полным годам."
+            )
+            if trend.p_value is None:
+                lines.append(
+                    "Инференция не выполнялась: HAC-интервал и p-значение не "
+                    "рассчитаны, наклон остаётся описательным."
+                )
+            elif trend.p_value < 0.05:
+                lines.append(
+                    f"p = {_p_text(trend.p_value)} < 0.05 при HAC(3): интервал "
+                    "исключает ноль при допущениях метода; это не прогноз."
+                )
+            else:
+                lines.append(
+                    f"p = {_p_text(trend.p_value)} ≥ 0.05: доказательств изменения "
+                    "частоты недостаточно."
+                )
+    else:
+        if model.slope is None:
+            lines.append(
+                "Наклон ячейки не определён: для этого ряда нет пригодной оценки."
+            )
+        else:
+            flag = (
+                "не рассчитан"
+                if model.q is None
+                else ("выполнен" if model.q <= 0.10 else "не выполнен")
+            )
+            lines.append(
+                f"Наклон ячейки {_num(model.slope)} "
+                f"{_SLOPE_UNIT.get(model.unit, 'за 10 лет')}; q = "
+                f"{_p_text(model.q)}; порог q ≤ 0.10 {flag}."
+            )
+        lines.append(
+            "Показаны только переданные ряд и статистики; поправка BY снижает "
+            "ложные находки, но не доказывает причину и не является прогнозом."
+        )
+
+    block: list[Any] = [
+        Paragraph("Режим «Детектив»", style["h2"]),
+        Paragraph(
+            escape(
+                "Шаблонный текст по полям проверенного ответа; числа не "
+                "пересчитываются."
+            ),
+            style["small"],
+        ),
+    ]
+    block.extend(_bullets(lines))
+    block.append(Spacer(1, 2))
+    return block
+
+
 # --- Per-kind story builders ---------------------------------------------
 def _story_trend(model: TrendResponse) -> list[Any]:
     style = _styles()
@@ -1202,10 +1387,10 @@ def _story_trend(model: TrendResponse) -> list[Any]:
             [
                 ("Широта", _latitude(model.latitude)),
                 ("Долгота", _longitude(model.longitude)),
-                ("Переменная", _VARIABLE_LABEL[model.variable]),
+                ("Переменная", f"{_VARIABLE_LABEL[model.variable]} ({model.variable})"),
                 ("Период", f"{model.start_year}–{model.end_year}"),
                 ("Единица", model.unit),
-                ("Агрегация", _AGGREGATION_LABEL[model.aggregation]),
+                ("Агрегация", f"{_AGGREGATION_LABEL[model.aggregation]} ({model.aggregation})"),
                 ("Полных лет", f"{len(complete)} из {len(model.series)}"),
             ]
         )
@@ -1297,9 +1482,10 @@ def _story_compare(model: CompareResponse) -> list[Any]:
                 ("Точка A", f"{_latitude(point_a.latitude)}, {_longitude(point_a.longitude)}"),
                 ("Точка B", f"{_latitude(point_b.latitude)}, {_longitude(point_b.longitude)}"),
                 ("Переменная", _VARIABLE_LABEL[point_a.variable]),
-                ("Период", f"{point_a.start_year}–{point_b.end_year}"),
+                ("Период", f"{point_a.start_year}–{point_a.end_year}"),
                 ("Единица", point_a.unit),
                 ("Общих полных лет", str(model.comparison.years_used)),
+                ("Описательный метод (Descriptive)", model.comparison.method),
             ]
         )
     )
@@ -1353,7 +1539,10 @@ def _story_compare(model: CompareResponse) -> list[Any]:
     story.append(
         _kv_table(
             [
-                ("Метод", "описательная разность годовых значений A − B"),
+                (
+                    "Метод",
+                    f"{model.comparison.method} (Descriptive, без инференции)",
+                ),
                 ("Общих полных лет", str(model.comparison.years_used)),
                 (
                     "Наклон разности",
@@ -1382,7 +1571,9 @@ def _story_compare(model: CompareResponse) -> list[Any]:
         )
     )
     story.extend(
-        _warnings_block(point_a.warnings)
+        _warnings_block(
+            tuple(dict.fromkeys([*point_a.warnings, *point_b.warnings]))
+        )
         + _source_block(
             name=point_a.source.name,
             parameter=point_a.source.parameter,
@@ -1542,7 +1733,7 @@ def _story_seasonal(model: SeasonalResponse) -> list[Any]:
                 color,
             )
         )
-        legend.append((color, _period_name(entry.period)))
+        legend.append((color, f"{_period_name(entry.period)} ({entry.period})"))
     story.extend(
         _time_chart(
             lines,
@@ -1832,7 +2023,11 @@ def _story_world_cell(model: ResearchReport) -> list[Any]:
                 ("Период архива", f"{min(years)}–{max(years)}"),
                 ("Лет в ряду", f"{len(years) - len(missing)} из {len(years)}"),
                 ("Версия архива", model.version),
-                ("Сетка", "0,5° по широте × 0,625° по долготе"),
+                (
+                    "Сетка",
+                    f"{_num(_WORLD_LAT_STEP, 3)}° по широте × "
+                    f"{_num(_WORLD_LON_STEP, 3)}° по долготе",
+                ),
             ]
         )
     )
@@ -1944,12 +2139,17 @@ def _page_furniture(canvas: Any, doc: Any) -> None:
 
 
 def _metadata(kind: str, model: Any) -> tuple[str, str]:
+    if kind == "heatwaves":
+        return ("EarthScope: волны жары", f"T2M_MAX; {model.start_year}–{model.end_year}; NASA POWER")
     if kind == "world-cell":
         return (
             "EarthScope: ячейка мировой карты трендов",
             f"NASA POWER {model.parameter}, {model.unit}, архив {model.version}",
         )
-    variable = _VARIABLE_LABEL[model.variable]
+    if kind == "compare":
+        point = model.point_a
+        return (f"EarthScope: {_kind_title(kind)}", f"{_VARIABLE_LABEL[point.variable]}; {point.start_year}–{point.end_year}; NASA POWER")
+    variable = _EVENT_LABEL[model.event] if kind == "extremes" else _VARIABLE_LABEL[model.variable]
     return (
         f"EarthScope: {_kind_title(kind)}",
         f"{variable}; {model.start_year}–{model.end_year}; NASA POWER",
@@ -1999,6 +2199,10 @@ def render_report(kind: str, payload: dict) -> bytes:
     ``world-cell``  :class:`ResearchReport` (local typed model)
     ==============  ==========================================
 
+    ``heatwaves`` is delegated to :func:`app.heatwave_report.render_heatwave_pdf`
+    (validated with :class:`app.heatwaves.HeatwaveResponse`) and is not part of
+    :data:`KINDS`.
+
     Raises
     ------
     InvalidReportKind
@@ -2012,6 +2216,12 @@ def render_report(kind: str, payload: dict) -> bytes:
 
     if not isinstance(kind, str):
         raise InvalidReportKind(kind)
+    if kind == "heatwaves":
+        # Extension owned by app.heatwave_report; it reuses this module's
+        # validated-payload helpers and keeps the six core kinds unchanged.
+        from .heatwave_report import render_heatwave_pdf
+
+        return render_heatwave_pdf(payload)
     model_class = MODEL_FOR_KIND.get(kind)
     if model_class is None:
         raise InvalidReportKind(kind)
@@ -2025,9 +2235,20 @@ def render_report(kind: str, payload: dict) -> bytes:
                 },
             ),
         )
+    # The PDF route marks detective narration with a private key.  It is not part
+    # of any response model, so it is stripped before strict validation.
+    detective = bool(payload.get("_detective"))
+    body = {key: value for key, value in payload.items() if key != "_detective"}
     try:
-        model = model_class.model_validate(dict(payload))
+        model = model_class.model_validate(body)
     except ValidationError as exc:
         raise InvalidReportPayload(kind, exc.errors()) from exc
+    # Paragraph construction resolves the font family immediately (ps2tt), so the
+    # pair must be registered before any story builder runs; _render_pdf() calls
+    # this again, and the second call is a no-op thanks to the registration lock.
+    _register_fonts()
     story = _STORY_BUILDERS[kind](model)
+    if detective:
+        # _masthead() emits brand, title, subtitle and rule in that order.
+        story[4:4] = _detective_block(kind, model)
     return _render_pdf(kind, model, story)

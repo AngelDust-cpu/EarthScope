@@ -29,7 +29,7 @@ from typing import Literal
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.concurrency import run_in_threadpool
 
-from . import analysis, climate, extremes, regional_map
+from . import analysis, climate, extremes, heatwaves, regional_map
 from .power import PowerError, load_daily
 from .regional_schemas import RegionalMapResponse, RegionalRegionsResponse
 from . import global_map
@@ -741,6 +741,76 @@ def _register_routes(application: FastAPI) -> None:
         except analysis.DataContractError as exc:
             raise _data_contract_error(exc) from exc
 
+    @application.get(
+        "/api/heatwaves",
+        response_model=heatwaves.HeatwaveResponse,
+        responses={
+            422: {"model": ErrorResponse},
+            502: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
+        tags=["analysis"],
+    )
+    def heatwave_analysis(
+        latitude: float = Query(
+            ..., description="WGS84 latitude in decimal degrees (-90 to 90)."
+        ),
+        longitude: float = Query(
+            ..., description="WGS84 longitude in decimal degrees (-180 to 180)."
+        ),
+        start_year: int = Query(..., description="First inclusive UTC calendar year."),
+        end_year: int = Query(..., description="Last inclusive UTC calendar year."),
+        threshold: float = Query(
+            heatwaves.DEFAULT_THRESHOLD,
+            description=(
+                "Strict daily T2M_MAX threshold in °C. A day exactly at the "
+                "threshold is not a heatwave day."
+            ),
+        ),
+        min_duration: int = Query(
+            heatwaves.DEFAULT_MIN_DURATION,
+            ge=heatwaves.MIN_DURATION_MIN,
+            le=heatwaves.MIN_DURATION_MAX,
+            description="Minimum consecutive exceedance days for one episode.",
+        ),
+    ) -> heatwaves.HeatwaveResponse:
+        """Heatwave episodes and descriptive annual trends for one point.
+
+        Detection reuses the shared ``load_daily`` ingestion for T2M_MAX
+        through ``_load_point``, so a request is one POWER range and one cache
+        entry.  Runs of strictly exceedance days are followed across Dec 31 and
+        attributed entirely to their start year; outer-window censoring and
+        incomplete years are disclosed in ``warnings`` instead of being
+        silently dropped or filled.
+        """
+
+        _validate_coordinate("latitude", latitude, -90.0, 90.0)
+        _validate_coordinate("longitude", longitude, -180.0, 180.0)
+        _validate_years(start_year, end_year)
+        _validate_threshold("hot_days", threshold)
+
+        daily, source = _load_point(
+            latitude=latitude,
+            longitude=longitude,
+            variable=heatwaves.POWER_VARIABLE,
+            start_year=start_year,
+            end_year=end_year,
+        )
+
+        try:
+            return heatwaves.build_heatwave_response(
+                daily=daily,
+                source=source,
+                latitude=latitude,
+                longitude=longitude,
+                start_year=start_year,
+                end_year=end_year,
+                threshold=threshold,
+                min_duration=min_duration,
+            )
+        except analysis.DataContractError as exc:
+            raise _data_contract_error(exc) from exc
+
     def world_data(load):
         try:
             return load()
@@ -861,6 +931,7 @@ class ResearchReportRoute(APIRoute):
             "/api/anomalies": "anomalies",
             "/api/seasonal": "seasonal",
             "/api/extremes": "extremes",
+            "/api/heatwaves": "heatwaves",
             "/api/maps/world/cell": "world-cell",
         }.get(self.path)
         if kind is None:
@@ -873,7 +944,9 @@ class ResearchReportRoute(APIRoute):
                 return response
             from .report_pdf import render_report
 
-            if len(response.body) > 256_000:
+            # Valid heatwave queries may contain one episode every other day.
+            limit = 2_000_000 if kind == "heatwaves" else 256_000
+            if len(response.body) > limit:
                 raise ApiError(422, "REPORT_TOO_LARGE", "Результат слишком велик для PDF.")
             payload = json.loads(response.body)
             if request.headers.get("x-earthscope-report") == "detective":
@@ -902,7 +975,8 @@ def create_app() -> FastAPI:
             "Annual NASA POWER temperature and precipitation trends at one "
             "WGS84 coordinate, anomaly baselines, seasonal and monthly "
             "aggregates, strict extreme-event day counts, a descriptive "
-            "two-point comparison, and a bounded regional climate trend map."
+            "two-point comparison, a bounded regional climate trend map, and "
+            "threshold-based heatwave episodes with descriptive trends."
         ),
     )
     application.add_middleware(

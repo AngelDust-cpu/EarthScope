@@ -42,7 +42,7 @@ export function safePdfFilename(disposition: string | null): string {
   if (name) { try { name = decodeURIComponent(name) } catch { name = undefined } }
   name ??= disposition?.match(/filename="([^"]+)"/i)?.[1] ?? disposition?.match(/filename=([^;]+)/i)?.[1]
   const safe = (name ?? 'EarthScope_report').replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)
-  return `EarthScope_${safe || 'report'}.pdf`
+  return /^EarthScope(?:[-_]|$)/i.test(safe) ? `${safe}.pdf` : `EarthScope_${safe || 'report'}.pdf`
 }
 
 export async function fetchPdf(request: PdfRequest, signal: AbortSignal, detective = false) {

@@ -4,6 +4,7 @@ import { BISHKEK, REYKJAVIK } from '../hooks/useCoordinates'
 import { extremeEvents, fetchExtremes, validExtremesQuery, type ExtremeEvent, type ExtremesResponse } from '../lib/extremes'
 import { displayError, ru } from '../lib/ru'
 import { ExtremesResult } from './ExtremesResult'
+import { HeatwavesMode } from './HeatwavesMode'
 import { LocationMap } from './LocationMap'
 import { Button } from './ui/button'
 import { Field, TextInput } from './ui/field'
@@ -16,6 +17,18 @@ const numeric = (p: Point) => ({ latitude: decimal(p.latitude), longitude: decim
 const validPoint = (p: Point) => Number.isFinite(decimal(p.latitude)) && Math.abs(decimal(p.latitude)) <= 90 && Number.isFinite(decimal(p.longitude)) && Math.abs(decimal(p.longitude)) <= 180
 
 export function ExtremesMode({ active }: { active: boolean }) {
+  const [submode, setSubmode] = useState<'days' | 'heatwaves'>('days')
+  return <div hidden={!active}>
+    <div className="mx-auto flex max-w-[1600px] flex-wrap gap-2 px-4 pb-3 sm:px-6" role="group" aria-label="Вид экстремальных событий">
+      <Button type="button" variant="outline" aria-pressed={submode === 'days'} onClick={() => setSubmode('days')}>Отдельные дни</Button>
+      <Button type="button" variant="outline" aria-pressed={submode === 'heatwaves'} onClick={() => setSubmode('heatwaves')}>Волны жары</Button>
+    </div>
+    <DailyExtremesMode active={active && submode === 'days'} />
+    <HeatwavesMode active={active && submode === 'heatwaves'} />
+  </div>
+}
+
+function DailyExtremesMode({ active }: { active: boolean }) {
   const id = useId()
   const [a, setA] = useState<Point>(point(BISHKEK)), [b, setB] = useState<Point>(point(REYKJAVIK))
   const [compare, setCompare] = useState(false), [selected, setSelected] = useState<'A' | 'B'>('A')

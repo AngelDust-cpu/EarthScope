@@ -154,3 +154,16 @@ A bounded map is available for 39-44 deg N and 69-81 deg E. It shows real NASA P
 The NASA regional product is an LST monthly/annual product and is not identical to the existing Daily Point UTC product. The first full live query returned 209 cells with 36 complete annual values per cell for both variables; later layers use the local raw-response and processed-analysis caches. The map is a limited demonstration region, not global coverage. Statistical limits and aggregation rules are in [the regional API contract](docs/REGIONAL-MAP-API.md) and [scientific method](docs/SCIENTIFIC_METHOD.md).
 
 Local checks for this milestone: `python -m pytest backend/tests/test_regional_data.py backend/tests/test_regional_map_api.py backend/tests/test_extremes_stats.py`; frontend `tsc --noEmit` and Vite production build. These tests use synthetic fixtures explicitly isolated from production data. Real observations are only read from NASA POWER.
+### Heatwave analysis
+
+Open **Погодные экстремумы → Волны жары**. Set the daily maximum
+temperature threshold and minimum duration, then run the analysis.
+The three charts describe annual frequency, total duration and maximum
+duration. Choose a year to see individual episodes. Export the annual
+summary and episode list as CSV or generate a scientific PDF. The same
+analysis is available in **Детектив**.
+
+Episodes that cross New Year belong to the year in which they start.
+Incomplete years are excluded from yearly statistics and descriptive
+trends. See [the scientific method](docs/SCIENTIFIC_METHOD.md).
+

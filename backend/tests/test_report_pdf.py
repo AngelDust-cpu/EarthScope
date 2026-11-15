@@ -281,6 +281,7 @@ def _number_variants(value: float) -> set[str]:
 def _assert_number_in_text(text: str, value: float | int | None) -> None:
     assert value is not None
     variants = _number_variants(float(value))
+    variants |= {variant.replace(".", ",") for variant in variants}
     assert any(variant in text for variant in variants), (
         f"none of the renderings {sorted(variants)!r} of {value!r} "
         "appears in the PDF text"

@@ -1,5 +1,19 @@
 # EarthScope progress
 
+## EarthScope 2.7 · Heatwaves
+
+- Added consecutive hot spells, annual aggregates, descriptive slopes and a lag-1 residual diagnostic to the existing NASA POWER Daily workflow.
+- The extremes tab and Detective both support configurable thresholds and duration, three annual charts, an episode table filtered by start year, two CSV exports and a scientific PDF.
+- Bishkek, 1990–2025 UTC, threshold above 30 °C for at least three consecutive days. The cached NASA series produced 299 episodes, 3,082 episode-days and a 48-day maximum. The Data specialist independently reproduced the episode count and verified a live NASA request plus cache reuse for Phoenix.
+- A complete consecutive run is assigned to its start year. The requested dates may truncate boundary events, and an incomplete year contributes no annual estimate. The slopes are descriptive.
+
+## EarthScope 2.6 · Scientific PDF reports
+
+- ReportLab generates A4 reports from validated analysis responses, with embedded Cyrillic fonts, vector plots, source provenance, and interpretation tied to server statistics.
+- Export is available after point trends, comparison, anomalies, seasons, months, extremes and Detective analyses. The global map exports the selected original cell. Full map views are excluded.
+- Verified eight report scenarios using cached NASA data, TypeScript and Vite production build, 383 backend tests, and a real browser download at 390 px. Isolated browser checks covered cancellation, request parameters, and download errors.
+- Report export reruns the analysis with the saved parameters. Reproducing an earlier result requires the same source data and version.
+
 ## November 14, 2026
 
 - Workspace inspected. Existing OpenCode roles and provider assignments are preserved.
