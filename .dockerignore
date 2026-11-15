@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!backend/
+!backend/app/
+!backend/app/**
+!scripts/
+!scripts/build_global_power.py
+**/__pycache__/
+**/*.pyc
