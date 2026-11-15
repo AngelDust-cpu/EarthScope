@@ -11,7 +11,15 @@ import re
 from playwright.sync_api import expect, sync_playwright
 
 
-URL = os.environ.get("EARTHSCOPE_TEST_URL", "http://127.0.0.1:5173/")
+SITE_URL = os.environ.get("EARTHSCOPE_TEST_URL", "http://127.0.0.1:5173/").rstrip("/")
+URL = f"{SITE_URL}/research/point"
+
+
+def open_mode(page, name):
+    picker = page.locator(".research-mode-picker")
+    if picker.get_attribute("open") is None:
+        picker.locator("summary").click()
+    picker.get_by_role("link", name=name, exact=True).click()
 
 
 def is_trend(response):
@@ -197,7 +205,7 @@ def exercise_comparison(browser, mobile=False):
     page.on("request", lambda request: requests.append(request) if "/api/compare" in request.url else None)
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(URL, wait_until="domcontentloaded")
-    page.get_by_role("button", name="Сравнение A / B").click()
+    open_mode(page, "Сравнение A / B")
     world = page.locator(".leaflet-container:visible")
     expect(world.locator(".leaflet-marker-icon")).to_have_count(2)
     world.evaluate("(node) => { window.testMapNode = node }")

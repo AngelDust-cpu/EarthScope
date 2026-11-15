@@ -4,7 +4,7 @@ import re
 import csv
 
 from playwright.sync_api import expect, sync_playwright
-from test_workstation import URL
+from test_workstation import URL, open_mode
 
 
 def response_is_extremes(response):
@@ -21,7 +21,7 @@ def run(page, button):
 def detective(browser):
     page = browser.new_page(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
     page.goto(URL, wait_until="domcontentloaded")
-    page.get_by_role("button", name="Детектив", exact=True).click()
+    open_mode(page, "Детектив")
     wizard = page.locator("#detective-workspace")
     parameters = page.get_by_role("region", name="Параметры исследования детектива")
     question = wizard.get_by_role("button", name="Стало ли больше экстремально жарких дней?", exact=True)
@@ -66,7 +66,7 @@ def workstation(browser):
     page.on("request", lambda request: requests.append(request) if "/api/extremes?" in request.url else None)
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(URL, wait_until="domcontentloaded")
-    page.get_by_role("button", name="Погодные экстремумы", exact=True).click()
+    open_mode(page, "Погодные экстремумы")
     scope = page.get_by_role("complementary", name="Параметры экстремальных событий")
     result = page.locator("#extremes-workspace")
     world = page.locator(".leaflet-container:visible")

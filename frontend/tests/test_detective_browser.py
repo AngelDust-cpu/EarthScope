@@ -3,7 +3,7 @@ import os
 import re
 
 from playwright.sync_api import expect, sync_playwright
-from test_workstation import URL
+from test_workstation import URL, open_mode
 
 
 def exercise(browser, question, variable, compare=False, mobile=False):
@@ -16,7 +16,7 @@ def exercise(browser, question, variable, compare=False, mobile=False):
     page.on("request", lambda req: requests.append(req) if is_analysis(req.url) else
             coverage.append(req) if req.url.endswith("/api/coverage") else None)
     page.goto(URL, wait_until="domcontentloaded")
-    page.get_by_role("button", name="Детектив", exact=True).click()
+    open_mode(page, "Детектив")
     wizard = page.locator("#detective-workspace")
     parameters = page.get_by_role("region", name="Параметры исследования детектива")
     card = wizard.get_by_role("button", name=question, exact=True)
@@ -76,8 +76,8 @@ def exercise(browser, question, variable, compare=False, mobile=False):
         assert "Разность описательная" in text and body["point_b"]["latitude"] == 64.147
     expected_requests = 2 if mobile or compare else 1
     assert len(requests) == expected_requests
-    page.get_by_role("button", name="Одна точка", exact=True).click()
-    page.get_by_role("button", name="Детектив", exact=True).click()
+    open_mode(page, "Одна точка")
+    open_mode(page, "Детектив")
     expect(wizard.get_by_role("heading", name="Что удалось выяснить")).to_be_visible()
     back.click()
     parameters.get_by_role("button", name="Открыть сохранённый ответ").click()
@@ -127,7 +127,7 @@ def exercise_reset(browser):
     page.goto(URL, wait_until="domcontentloaded")
     ordinary = page.locator("#workspace")
     page.get_by_label("Первый год", exact=True).filter(visible=True).fill("1993")
-    page.get_by_role("button", name="Детектив", exact=True).click()
+    open_mode(page, "Детектив")
     wizard = page.locator("#detective-workspace")
     parameters = page.get_by_role("region", name="Параметры исследования детектива")
     def choose(name):
@@ -212,7 +212,7 @@ def exercise_reset(browser):
     choose("Изменение осадков")
     choose("Далее")
     expect(wizard.get_by_role("button", name="Повторить запрос")).to_have_count(0)
-    page.get_by_role("button", name="Одна точка", exact=True).click()
+    open_mode(page, "Одна точка")
     expect(ordinary).to_be_visible()
     expect(page.get_by_label("Первый год", exact=True).filter(visible=True)).to_have_value("1993")
     assert not errors, errors

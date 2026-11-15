@@ -1,255 +1,141 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, CalendarRange, ExternalLink, GitCompare, Globe2, Layers, MapPin, Search, Thermometer } from 'lucide-react'
-import { AnalysisControlsTarget } from './components/AnalysisControlsPortal'
-import { ControlPanel } from './components/ControlPanel'
-import { DashboardBody } from './components/DashboardBody'
-import { ComparisonBody } from './components/ComparisonBody'
-import { DetectiveMode } from './components/DetectiveMode'
-import { ClimateMode, type ClimateModeName } from './components/ClimateMode'
-import { ExtremesMode } from './components/ExtremesMode'
-import { ProfileMode } from './components/ProfileMode'
-import RegionalTrendMapMode from './components/RegionalTrendMapMode'
-import { LocationMap } from './components/LocationMap'
-import { Button } from './components/ui/button'
-import { useAsyncData, type AsyncState } from './hooks/useAsyncData'
-import { BISHKEK, REYKJAVIK, roundCoordinate, useCoordinates, type Coordinates } from './hooks/useCoordinates'
-import { fetchCompare, fetchCoverage, fetchTrend } from './lib/api'
-import { formatCoordinate } from './lib/format'
-import { ru, variableLabel, unitLabel } from './lib/ru'
-import type { CompareResponse, Coverage, TrendResponse, Variable } from './lib/types'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowRight, ChartNoAxesCombined, Database, MapPin, Search } from 'lucide-react'
+import { SiteHeader, SiteLink, SiteNavigator } from './components/SiteNavigation'
+import { isResearchMode, pageFromPath, pageUrl, researchModes, type ResearchMode, type SitePage } from './lib/researchRoutes'
+import './site.css'
 
-const { app, results } = ru
-const navigation = [
-  { label: 'Обзор', entries: [
-    { value: 'profile', label: 'Климатический профиль', Icon: Layers, title: 'Климатический профиль', hint: 'Сводка температуры, осадков, сезонных изменений и экстремумов для одной точки.' },
-  ] },
-  { label: 'Исследования', entries: [
-    { value: 'single', label: app.modes.single, Icon: MapPin, title: 'Климат в выбранной точке', hint: 'Выберите место, показатель и период, чтобы оценить многолетний климатический тренд.' },
-    { value: 'compare', label: app.modes.compare, Icon: GitCompare, title: 'Сравнение двух точек', hint: 'Сопоставьте годовые ряды двух мест за общий период.' },
-    { value: 'anomalies', label: app.modes.anomalies, Icon: Activity, title: app.modes.anomalies, hint: 'Сопоставьте каждый год со средним выбранного базового периода.' },
-    { value: 'seasonal', label: app.modes.seasonal, Icon: CalendarRange, title: app.modes.seasonal, hint: 'Исследуйте изменения по сезонам или в одном календарном месяце.' },
-    { value: 'extremes', label: 'Погодные экстремумы', Icon: Thermometer, title: 'Погодные экстремумы', hint: 'Оцените частоту пороговых событий и длительность волн жары.' },
-  ] },
-  { label: 'Инструменты', entries: [
-    { value: 'regional-map', label: 'Карта климатических трендов', Icon: Globe2, title: 'Пространственные тренды', hint: 'Исследуйте наклоны и статистическую поддержку по ячейкам сетки NASA POWER.' },
-    { value: 'detective', label: app.modes.detective, Icon: Search, title: 'Климатический детектив', hint: 'Выберите вопрос и проведите исследование по шагам.' },
-  ] },
-] as const
+const ResearchWorkspace = lazy(() => import('./ResearchWorkspace'))
 
-type View = typeof navigation[number]['entries'][number]['value']
+const examples: Record<ResearchMode, string> = {
+  single: 'Как изменилась температура в Бишкеке с 1990 года?',
+  compare: 'Где потепление шло быстрее — в Бишкеке или Рейкьявике?',
+  profile: 'Как за последние десятилетия менялись осадки, температура и экстремумы в моём регионе?',
+  anomalies: 'Какие годы были теплее среднего за 1991–2020?',
+  seasonal: 'Как менялось количество осадков в феврале?',
+  extremes: 'Стало ли больше дней с температурой выше +30 °C?',
+  'regional-map': 'Где на карте мира видны наиболее выраженные тренды?',
+  detective: 'Как провести первое исследование от вопроса до научного вывода?',
+}
 
-type Mode = 'single' | 'compare'
-interface Query extends Coordinates { mode: Mode; pointB: Coordinates; variable: Variable; startYear: number; endYear: number }
-const queryKey = (q: Query) => [q.mode, q.variable, q.startYear, q.endYear, q.latitude, q.longitude,
-  ...(q.mode === 'compare' ? [q.pointB.latitude, q.pointB.longitude] : [])].join('|')
-const queryLabel = (q: Query) =>
-  `${variableLabel(q.variable)} · ${q.startYear}–${q.endYear} UTC · ${q.mode === 'compare' ? 'A: ' : ''}${formatCoordinate(q.latitude)}, ${formatCoordinate(q.longitude)}${q.mode === 'compare' ? ` · B: ${formatCoordinate(q.pointB.latitude)}, ${formatCoordinate(q.pointB.longitude)}` : ''}`
+const issykPhoto = 'https://science.nasa.gov/earth/earth-observatory/lake-issyk-kul-85918/'
+const tienShanPhoto = 'https://science.nasa.gov/earth/earth-observatory/snow-and-sand-in-central-asia-144757/'
+
+function PublicPage({ page }: { page: 'home' | 'catalog' | 'not-found' }) {
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [page])
+
+  return <div className="earthscope-site">
+    <SiteHeader />
+    {page === 'home' ? (
+      <main>
+        <section className="site-intro" aria-labelledby="site-home-title">
+          <div className="site-container site-intro-copy site-enter">
+            <h1 id="site-home-title" ref={heading} tabIndex={-1}>Как меняется климат Земли?</h1>
+            <p>Выберите место на карте и исследуйте, как за десятилетия изменились температура, осадки и частота экстремальных событий.</p>
+            <SiteLink to="catalog" className="site-primary">Начать исследование <ArrowRight size={18} aria-hidden="true" /></SiteLink>
+          </div>
+          <figure className="site-hero-photo">
+            <img src={`${import.meta.env.BASE_URL}issyk-kul-nasa.webp`} alt="Озеро Иссык-Куль среди заснеженных гор Тянь-Шаня" width={1440} height={957} fetchPriority="high" />
+            <figcaption>
+              <span>Иссык-Куль, Кыргызстан</span>
+              <a href={issykPhoto} target="_blank" rel="noreferrer">Снимок с МКС · NASA, 2015</a>
+            </figcaption>
+          </figure>
+          <a href="#site-start-title" className="site-scroll-link">
+            <span>Вопросы для быстрого старта</span><ArrowDown size={19} aria-hidden="true" />
+          </a>
+        </section>
+        <div className="site-container">
+        <section className="site-start" aria-labelledby="site-start-title">
+          <h2 id="site-start-title" tabIndex={-1}>С какого вопроса начать?</h2>
+          <div className="site-start-grid">
+            <SiteLink to="single" className="site-start-link"><MapPin size={19} aria-hidden="true" />{examples.single}<ArrowRight size={17} aria-hidden="true" /></SiteLink>
+            <SiteLink to="regional-map" className="site-start-link"><ChartNoAxesCombined size={19} aria-hidden="true" />{examples['regional-map']}<ArrowRight size={17} aria-hidden="true" /></SiteLink>
+            <SiteLink to="detective" className="site-start-link"><Search size={19} aria-hidden="true" />{examples.detective}<ArrowRight size={17} aria-hidden="true" /></SiteLink>
+          </div>
+        </section>
+        <section className="site-method" aria-labelledby="site-data-title">
+          <div>
+            <Database size={23} aria-hidden="true" />
+            <h2 id="site-data-title">От данных NASA к ответу</h2>
+            <p>EarthScope использует открытые данные NASA POWER на основе реанализа MERRA-2. Значения относятся к ячейкам географической сетки. Результат в выбранной точке может отличаться от измерений ближайшей метеостанции.</p>
+            <a href="https://power.larc.nasa.gov/" target="_blank" rel="noreferrer">Подробнее о NASA POWER <ArrowRight size={15} aria-hidden="true" /></a>
+          </div>
+          <ol>
+            <li><strong>Задайте место и период.</strong> Выберите точку на карте или укажите координаты.</li>
+            <li><strong>Оцените изменения.</strong> Сопоставьте значения по годам, тренд и его неопределённость.</li>
+            <li><strong>Сохраните результат.</strong> В режимах с экспортом скачайте таблицу CSV или научный PDF-отчёт.</li>
+          </ol>
+        </section>
+        </div>
+      </main>
+    ) : page === 'catalog' ? (
+      <main className="site-container site-catalog">
+        <header className="site-catalog-intro site-enter">
+          <div>
+            <h1 ref={heading} tabIndex={-1}>Выберите исследование</h1>
+            <p>Изучите климат одного места, сравните регионы или откройте карту мира. Для первого знакомства «Детектив» проведёт вас от вопроса до результата.</p>
+          </div>
+          <figure className="site-photo site-catalog-photo">
+            <img src={`${import.meta.env.BASE_URL}tien-shan-nasa.webp`} alt="Снег на восточном Тянь-Шане рядом с пустыней Такла-Макан" width={648} height={900} />
+            <figcaption><a href={tienShanPhoto} target="_blank" rel="noreferrer">Тянь-Шань · снимок с МКС, NASA, 2018</a></figcaption>
+          </figure>
+        </header>
+        <ul className="site-research-grid">
+          {researchModes.map(({ value, label, hint, Icon }) => (
+            <li key={value}>
+              <SiteLink to={value} className="site-research-card" aria-labelledby={`catalog-${value}`}>
+                <Icon size={22} aria-hidden="true" />
+                <h2 id={`catalog-${value}`}>{label}</h2>
+                <p>{hint}</p>
+                <p className="site-card-example">{examples[value]}</p>
+                <ArrowRight className="site-card-arrow" size={18} aria-hidden="true" />
+              </SiteLink>
+            </li>
+          ))}
+        </ul>
+        <p className="site-catalog-note">Доступный период зависит от режима. У каждого результата указаны источник данных и ограничения анализа.</p>
+      </main>
+    ) : (
+      <main className="site-container site-catalog">
+        <h1 ref={heading} tabIndex={-1}>Страница не найдена</h1>
+        <SiteLink to="catalog" className="site-primary">Все исследования <ArrowRight size={18} aria-hidden="true" /></SiteLink>
+      </main>
+    )}
+  </div>
+}
 
 export default function App() {
-  const pointA = useCoordinates(BISHKEK)
-  const pointB = useCoordinates(REYKJAVIK)
-  const [mode, setMode] = useState<Mode>('single')
-  const [view, setView] = useState<View>('single')
-  const [controlsTarget, setControlsTarget] = useState<HTMLDivElement | null>(null)
-  const detective = view === 'detective'
-  const extremes = view === 'extremes'
-  const regionalMap = view === 'regional-map'
-  const profile = view === 'profile'
-  const climate = view === 'anomalies' || view === 'seasonal' ? view : null
-  const currentGroup = navigation.find(group => group.entries.some(entry => entry.value === view))
-  const currentView = currentGroup?.entries.find(entry => entry.value === view)
-  const [climateMode, setClimateMode] = useState<ClimateModeName>('anomalies')
-  const [activePoint, setActivePoint] = useState<'A' | 'B'>('A')
-  const active = mode === 'compare' && activePoint === 'B' ? pointB : pointA
-  const { coordinates, setFromMap, setNumeric, applyPreset } = active
-  const [variable, setVariable] = useState<Variable>('temperature')
-  const [startYear, setStartYear] = useState(1990)
-  const [endYear, setEndYear] = useState(2025)
-  const [focusRequest, setFocusRequest] = useState(0)
-  const coverageState = useAsyncData<Coverage>('coverage', signal => fetchCoverage({ signal }))
-  const [submittedByMode, setSubmittedByMode] = useState<Partial<Record<Mode, Query>>>({})
-  const [resultByMode, setResultByMode] = useState<Partial<Record<Mode, Query>>>({})
-  const submitted = submittedByMode[mode]
-  const resultQuery = resultByMode[mode]
-  const [cancelled, setCancelled] = useState(false)
-  const [trendState, setTrendState] = useState<AsyncState<TrendResponse>>({ data: null, error: null, loading: false })
-  const [compareState, setCompareState] = useState<AsyncState<CompareResponse>>({ data: null, error: null, loading: false })
-  const currentState = mode === 'compare' ? compareState : trendState
-  const loading = trendState.loading || compareState.loading
-  const request = useRef<AbortController | null>(null)
-  useEffect(() => () => { request.current?.abort() }, [])
-  const staged = useMemo<Query>(() => ({
-    mode, pointB: pointB.coordinates, variable, startYear, endYear,
-    latitude: roundCoordinate(pointA.coordinates.latitude), longitude: roundCoordinate(pointA.coordinates.longitude),
-  }), [mode, variable, startYear, endYear, pointA.coordinates, pointB.coordinates])
-  const dirty = resultQuery !== undefined && queryKey(staged) !== queryKey(resultQuery)
-
-  const executeAnalysis = useCallback(async (query: Query) => {
-    // The ref closes the pre-render double-click window as well as disabling the button.
-    if (request.current || !coverageState.data) return
-    const controller = new AbortController()
-    request.current = controller
-    setSubmittedByMode(previous => ({ ...previous, [query.mode]: query }))
-    setCancelled(false)
-    if (query.mode === 'compare') setCompareState(previous => ({ ...previous, loading: true, error: null }))
-    else setTrendState(previous => ({ ...previous, loading: true, error: null }))
-    try {
-      if (query.mode === 'compare') {
-        const data = await fetchCompare({
-          point_a: { latitude: query.latitude, longitude: query.longitude },
-          point_b: query.pointB, variable: query.variable, start_year: query.startYear, end_year: query.endYear,
-        }, { signal: controller.signal })
-        if (controller.signal.aborted) return
-        setCompareState({ data, loading: false, error: null })
-      } else {
-        const data = await fetchTrend(query, { signal: controller.signal })
-        if (controller.signal.aborted) return
-        setTrendState({ data, loading: false, error: null })
-      }
-      setResultByMode(previous => ({ ...previous, [query.mode]: query }))
-    } catch (error) {
-      if (controller.signal.aborted) return
-      const failure = error instanceof Error ? error : new Error(String(error))
-      if (query.mode === 'compare') setCompareState(previous => ({ ...previous, loading: false, error: failure }))
-      else setTrendState(previous => ({ ...previous, loading: false, error: failure }))
-    } finally {
-      if (request.current === controller) request.current = null
-    }
-  }, [coverageState.data])
-  const runAnalysis = useCallback((point: Coordinates) => {
-    setNumeric(point.latitude, point.longitude)
-    const rounded = { latitude: roundCoordinate(point.latitude), longitude: roundCoordinate(point.longitude) }
-    void executeAnalysis(mode === 'compare' && activePoint === 'B' ? { ...staged, pointB: rounded } : { ...staged, ...rounded })
-  }, [staged, setNumeric, executeAnalysis, mode, activePoint])
-  const cancelAnalysis = useCallback(() => {
-    request.current?.abort()
-    request.current = null
-    setCancelled(true)
-    setTrendState(previous => ({ ...previous, loading: false, error: null }))
-    setCompareState(previous => ({ ...previous, loading: false, error: null }))
+  const [page, setPage] = useState(() => pageFromPath(window.location.pathname))
+  const [workspaceOpened, setWorkspaceOpened] = useState(() => isResearchMode(page))
+  const changePage = useCallback((next: SitePage | 'not-found') => {
+    setPage(next)
+    if (isResearchMode(next)) setWorkspaceOpened(true)
   }, [])
-  const handleMapSelect = useCallback(({ latitude, longitude }: Coordinates) => {
-    setCancelled(false)
-    setFromMap(latitude, longitude)
-  }, [setFromMap])
-  const handleCoordinatesCommit = useCallback(({ latitude, longitude }: Coordinates) => {
-    setCancelled(false)
-    setNumeric(latitude, longitude)
-  }, [setNumeric])
-  const handlePreset = useCallback((point: Coordinates) => {
-    setCancelled(false)
-    applyPreset(point)
-    setFocusRequest(value => value + 1)
-  }, [applyPreset])
-  const data = trendState.data
-  const metaDescription = data
-    ? `${data.variable === 'temperature' ? results.temperatureMethod : results.precipitationMethod} · ${unitLabel(data.unit)} · ${data.start_year}–${data.end_year} UTC · ${formatCoordinate(data.latitude)}, ${formatCoordinate(data.longitude)} · NASA POWER ${data.source.dataset}`
-    : ''
 
-  return (
-    <div className="min-h-screen bg-base text-ink">
-      <a href={profile ? '#profile-workspace' : regionalMap ? '#regional-map-title' : extremes ? '#extremes-workspace' : detective ? '#detective-workspace' : climate ? '#climate-workspace' : '#workspace'} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:bg-card focus:p-3">{app.skip}</a>
-      <div className="research-shell framer-workstation" data-mode={view}>
-        <header className="station-header">
-          <div className="station-brand"><Globe2 size={28} strokeWidth={1.25} aria-hidden="true" /><span>EarthScope<span className="station-brand-dot">.</span></span></div>
-          <span className="station-header-caption">Исследование климата Земли</span>
-          <a className="station-source-link" href="https://power.larc.nasa.gov/" target="_blank" rel="noreferrer">NASA POWER <ExternalLink size={13} aria-hidden="true" /></a>
-        </header>
-        <aside className="research-rail">
-          <nav aria-label={app.analysisMode} className="research-navigation">
-            <fieldset disabled={loading}>
-              <legend className="sr-only">{app.analysisMode}</legend>
-              {navigation.map(group => <div key={group.label} className="research-nav-group">
-                <p className="research-nav-label">{group.label}</p>
-                {group.entries.map(({ value, label, Icon }) => <button key={value} type="button"
-                  className="research-nav-item" aria-label={label} aria-pressed={view === value}
-                  onClick={() => {
-                    if (value !== view) window.scrollTo(0, 0)
-                    setView(value)
-                    if (value === 'single' || value === 'compare') setMode(value)
-                    if (value === 'anomalies' || value === 'seasonal') setClimateMode(value)
-                    setCancelled(false)
-                  }}>
-                  <Icon size={16} aria-hidden="true" /><span>{label}</span>
-                </button>)}
-              </div>)}
-            </fieldset>
-          </nav>
-          <section hidden={view !== 'single' && view !== 'compare'} aria-label={app.controls} className="point-controls station-query">
-            {mode === 'compare' && <fieldset className="station-active-point">
-              <legend className="mb-2 text-sm font-semibold">Активная точка: карта, ввод и пресеты</legend>
-              {(['A', 'B'] as const).map(value => {
-                const point = value === 'A' ? pointA.coordinates : pointB.coordinates
-                return <label key={value} className="station-point-option">
-                  <input type="radio" name="active-point" checked={activePoint === value} onChange={() => setActivePoint(value)} />
-                  {value}: {formatCoordinate(point.latitude)}, {formatCoordinate(point.longitude)}°
-                </label>
-              })}
-              <p className="text-xs text-muted">Одна переменная и общий период для обеих точек. Запрос — только по кнопке.</p>
-            </fieldset>}
-            <ControlPanel coverage={coverageState.data} coverageError={coverageState.error} coordinates={coordinates}
-              pointLabel={mode === 'compare' ? `Точка ${activePoint} · WGS84, градусы` : undefined}
-              onCoordinatesCommit={handleCoordinatesCommit} variable={variable}
-              onVariableChange={next => { setCancelled(false); setVariable(next) }}
-              startYear={startYear} endYear={endYear} onRangeChange={(start, end) => {
-                setCancelled(false)
-                setStartYear(start)
-                setEndYear(end)
-              }}
-              onPreset={handlePreset} loading={loading} onSubmit={runAnalysis} />
-            {coverageState.loading && <p role="status" className="mt-3 text-xs text-muted">{app.checking}</p>}
-          </section>
-          <div ref={setControlsTarget} className="analysis-controls-slot min-w-0" />
-          <p className="station-rail-note">NASA POWER / MERRA-2</p>
-        </aside>
-        <div className="research-content">
-          <div className="research-heading" data-view={view}>
-            <h1>{currentView?.title}</h1>
-            <p>{currentView?.hint}</p>
-          </div>
-          <div className="research-view">
-            <AnalysisControlsTarget.Provider value={controlsTarget}>
-              <DetectiveMode active={detective} coverage={coverageState} />
-              <ClimateMode active={climate !== null} mode={climateMode} coverage={coverageState} />
-              <ExtremesMode active={extremes} />
-              <ProfileMode active={profile} coverage={coverageState} />
-              <RegionalTrendMapMode hidden={!regionalMap} />
-            </AnalysisControlsTarget.Provider>
-            <div hidden={profile || regionalMap || extremes || detective || climate !== null}>
-              <div className="point-workbench point-primary">
-                <section aria-labelledby="map-heading" className="point-map">
-                  <div className="point-map-header">
-                    <h2 id="map-heading">Область исследования</h2>
-                    <span className="font-mono text-xs">{formatCoordinate(coordinates.latitude)} / {formatCoordinate(coordinates.longitude)} · WGS84</span>
-                  </div>
-                  <LocationMap selection={coordinates} onSelect={handleMapSelect} focusRequest={focusRequest} describedBy="map-hint"
-                    selectionLabel={mode === 'compare' ? activePoint : undefined}
-                    otherSelection={mode === 'compare' ? { ...(activePoint === 'A' ? pointB.coordinates : pointA.coordinates), label: activePoint === 'A' ? 'B' : 'A' } : undefined}
-                    className="point-map-viewport" />
-                  <p id="map-hint" className="point-map-hint">{mode === 'compare' ? `Клик меняет только точку ${activePoint}. Координаты можно ввести с клавиатуры. ` : ''}{app.mapHint}</p>
-                </section>
-                <main id="workspace" tabIndex={-1} className="point-results">
-                  <h2 className="mb-3 text-xl font-semibold tracking-tight">{app.results}</h2>
-                  <div className="analysis-status mb-4 space-y-2 text-sm text-secondary">
-                    <div role="status" className="space-y-1">
-                      {currentState.loading ? <><p>{app.active}</p><p>{submitted && queryLabel(submitted)}</p>{currentState.data && <p>{app.previous}</p>}</>
-                        : cancelled ? <p>{app.cancelled}</p> : dirty ? <p>{app.draft}</p> : null}
-                    </div>
-                    {loading && <Button variant="outline" size="sm" onClick={cancelAnalysis}>{app.cancel}</Button>}
-                  </div>
-                  {mode === 'compare' ? <ComparisonBody
-                    state={coverageState.error ? { ...compareState, error: coverageState.error, loading: false } : compareState}
-                    onRetry={coverageState.error ? coverageState.retry : () => { if (submitted) void executeAnalysis(submitted) }} />
-                  : <DashboardBody coverage={coverageState.data}
-                    state={coverageState.error ? { ...trendState, error: coverageState.error, loading: false } : trendState}
-                    onRetry={coverageState.error ? coverageState.retry : () => { if (submitted) void executeAnalysis(submitted) }}
-                    metaDescription={metaDescription} showInterpretation />}
-                </main>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  useEffect(() => {
+    function restorePage() { changePage(pageFromPath(window.location.pathname)) }
+    window.addEventListener('popstate', restorePage)
+    return () => window.removeEventListener('popstate', restorePage)
+  }, [changePage])
+
+  const navigate = useCallback((next: SitePage) => {
+    if (pageFromPath(window.location.pathname) === next) return
+    window.history.pushState(null, '', pageUrl(next))
+    changePage(next)
+  }, [changePage])
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    const title = page === 'catalog' ? 'Исследования' : page === 'not-found' ? 'Страница не найдена' :
+      researchModes.find(mode => mode.value === page)?.title
+    document.title = title ? `${title} | EarthScope` : 'EarthScope — исследование климата Земли'
+  }, [page])
+
+  return <SiteNavigator.Provider value={navigate}>
+    {!isResearchMode(page) && <PublicPage page={page} />}
+    {workspaceOpened && <Suspense fallback={isResearchMode(page) ? <p role="status" className="site-container p-6">Открываем исследование…</p> : null}>
+      <ResearchWorkspace view={isResearchMode(page) ? page : null} />
+    </Suspense>}
+  </SiteNavigator.Provider>
 }

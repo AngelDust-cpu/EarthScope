@@ -4,7 +4,7 @@ import re
 import csv
 
 from playwright.sync_api import expect, sync_playwright
-from test_workstation import URL
+from test_workstation import URL, open_mode
 
 
 def submit(page, scope, route):
@@ -17,7 +17,7 @@ def submit(page, scope, route):
 def detective(browser):
     page = browser.new_page(viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True)
     page.goto(URL, wait_until="domcontentloaded")
-    page.get_by_role("button", name="Детектив", exact=True).click()
+    open_mode(page, "Детектив")
     wizard = page.locator("#detective-workspace")
     parameters = page.get_by_role("region", name="Параметры исследования детектива")
     errors = []
@@ -49,7 +49,7 @@ def workstation(browser):
     page.on("request", lambda request: analysis_requests.append(request.url)
             if re.search(r"/api/(anomalies|seasonal)\?", request.url) else None)
     page.goto(URL, wait_until="domcontentloaded")
-    page.get_by_role("button", name="Климатические аномалии", exact=True).click()
+    open_mode(page, "Климатические аномалии")
     form = page.get_by_role("complementary", name="Параметры климатического анализа")
     world = page.locator(".leaflet-container:visible")
     world.evaluate("(node) => { window.climateMap = node }")
@@ -66,7 +66,7 @@ def workstation(browser):
         rows = list(csv.DictReader(file))
     assert len(rows) == 5 and float(rows[0]["anomaly"]) == result["series"][0]["anomaly"]
     assert world.evaluate("(node) => node === window.climateMap")
-    page.get_by_role("button", name="Сезонный анализ", exact=True).click()
+    open_mode(page, "Сезонный анализ")
     form.get_by_label("Первый год", exact=True).fill("1990")
     months = form.get_by_role("button", name="Месяцы", exact=True)
     if months.count():

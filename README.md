@@ -34,7 +34,7 @@ npm ci --ignore-scripts
 npm run dev
 ```
 
-Open [EarthScope locally](http://localhost:5173). Use **Одна точка** for a single analysis or **Сравнение A / B** for two. In comparison mode, choose the active point before using the map, typing coordinates, or selecting a preset. A defaults to Bishkek, B to Reykjavík. Choose a common variable and year range, then click **Провести анализ**. The chart can show absolute values or anomalies relative to shared baseline years. The paired slope difference is descriptive. See the [scientific method](docs/SCIENTIFIC_METHOD.md) and [demo script](docs/DEMO.md). The first uncached analysis requires access to NASA POWER. The bundled [Natural Earth basemap](https://www.naturalearthdata.com/about/terms-of-use/) provides geographic context; it does not show NASA POWER grid boundaries.
+Open [EarthScope locally](http://localhost:5173) and choose **Начать исследование**. The [catalog](http://localhost:5173/research) links to eight modes. You can also open [Одна точка](http://localhost:5173/research/point), [Сравнение A / B](http://localhost:5173/research/compare), or the [trend map](http://localhost:5173/research/trend-map) directly. In comparison mode, choose the active point before using the map, typing coordinates, or selecting a preset. A defaults to Bishkek, B to Reykjavík. Choose a common variable and year range, then click **Провести анализ**. The chart can show absolute values or anomalies relative to shared baseline years. The paired slope difference is descriptive. See the [scientific method](docs/SCIENTIFIC_METHOD.md) and [demo script](docs/DEMO.md). The first uncached analysis requires access to NASA POWER. The bundled [Natural Earth basemap](https://www.naturalearthdata.com/about/terms-of-use/) provides geographic context.
 
 Run `uv run --locked pytest --basetemp .tools/pytest-local` from the root and `npm run build` from `frontend`. [API and methods](docs/API.md) · [Progress and verification](docs/PROGRESS.md) · [Demo and submission draft](docs/DEMO.md)
 
@@ -57,6 +57,8 @@ Run `python frontend/tests/test_climate_browser.py` for the climate workflows. U
 ## Hosting preparation
 
 For Vercel or Cloudflare Pages set the frontend root to `frontend`, the build command to `npm run build`, and the output directory to `dist`. Set `VITE_API_BASE_URL` to the backend HTTPS origin at build time. On a Python host, install with `uv sync --locked --no-dev` and start `uv run --no-sync uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port <host-port>`, replacing `<host-port>` with the host-provided port. Set `EARTHSCOPE_ALLOWED_ORIGINS` to the comma-separated frontend origins and `EARTHSCOPE_CACHE_DIR` to a writable directory for verified POWER responses. Repeat queries can use those responses offline when the local backend is running and the exact coordinates, variable, and dates match. The reported retrieval time refers to the original download.
+
+Serve `index.html` for requests to `/research` and `/research/*`, including direct links and reloads. Vite handles this fallback during local development and preview.
 
 ## Data and interpretation
 

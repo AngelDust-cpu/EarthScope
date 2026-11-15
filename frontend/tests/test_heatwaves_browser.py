@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from playwright.sync_api import expect, sync_playwright
 
-URL = os.environ.get('EARTHSCOPE_TEST_URL', 'http://127.0.0.1:5173/')
+from test_workstation import URL, open_mode
 
 
 def fixture(query, empty=False):
@@ -65,7 +65,7 @@ def exercise(browser, width):
     page.route('**/api/coverage', lambda r: r.fulfill(json=dict(min_year=1981, max_year=2025, min_years=5)))
     page.route('**/api/heatwaves?*', heatwaves)
     page.goto(URL, wait_until='domcontentloaded')
-    page.get_by_role('button', name='Погодные экстремумы', exact=True).click()
+    open_mode(page, "Погодные экстремумы")
     page.get_by_role('button', name='Волны жары', exact=True).focus()
     page.keyboard.press('Enter')
     scope = page.get_by_role('complementary', name='Параметры волн жары')
@@ -131,7 +131,7 @@ def exercise(browser, width):
             pass  # Browser may have already aborted the request.
     assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
     mode['value'] = 'normal'
-    page.get_by_role('button', name='Детектив', exact=True).click()
+    open_mode(page, "Детектив")
     wizard = page.locator('#detective-workspace')
     parameters = page.get_by_role('region', name='Параметры исследования детектива')
     wizard.get_by_role('button', name='Стали ли волны жары чаще и продолжительнее?', exact=True).click()

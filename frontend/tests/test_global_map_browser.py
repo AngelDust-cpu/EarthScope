@@ -4,7 +4,7 @@ from collections import Counter
 
 from playwright.sync_api import expect, sync_playwright
 
-URL = os.environ.get("EARTHSCOPE_TEST_URL", "http://127.0.0.1:5176/")
+from test_workstation import URL, open_mode
 EDGE = os.environ.get("EARTHSCOPE_BROWSER_EXECUTABLE",
                       "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")
 
@@ -17,7 +17,7 @@ def test_global_map():
             requests = Counter()
             page.on("request", lambda request: requests.update([request.url.split("?")[0].split("/api/")[-1]]))
             page.goto(URL, wait_until="domcontentloaded")
-            page.get_by_role("button", name="Карта климатических трендов", exact=True).click()
+            open_mode(page, "Карта климатических трендов")
             map_element = page.locator(".rtm-map-canvas")
             canvas = map_element.locator("canvas.rtm-raster")
             expect(canvas).to_be_visible(timeout=25000)

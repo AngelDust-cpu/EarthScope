@@ -6,7 +6,7 @@ EarthScope helps students investigate how temperature and precipitation at a cho
 
 Before presenting, run both comparisons with the cache enabled. Use the defaults: A Bishkek (42.870, 74.600), B Reykjavík (64.147, −21.942), 1990–2025. Return to a fresh page so the audience sees how analysis starts.
 
-1. **0–25 seconds.** Open **Сравнение A / B**, show the two points on the map, and click **Провести анализ** for temperature.
+1. **0–25 seconds.** From the home page, choose **Начать исследование**, then **Сравнение A / B**. Show the two points on the map and click **Провести анализ** for temperature. For a rehearsal, open `/research/compare` directly.
 2. **25–55 seconds.** Point out the two fitted slopes: +0.373 and +0.130 °C per decade. The paired difference is +0.242 °C per decade. Explain that this is an estimate from 36 shared years; the app does not test whether the difference is statistically significant.
 3. **55–90 seconds.** Switch to anomalies to show each point relative to its own average over the same baseline years, 1990–1999. Choose precipitation and run again. Show annual totals in mm and the paired difference of +41.40 mm per decade.
 4. **90–120 seconds.** Download **Скачать CSV · A и B** and show NASA POWER source metadata. Explain that MERRA-2 is a set of grid estimates and the individual OLS intervals assume independent residuals. [Scientific method](SCIENTIFIC_METHOD.md) · [Demo verification](DEMO-VERIFICATION.md)
