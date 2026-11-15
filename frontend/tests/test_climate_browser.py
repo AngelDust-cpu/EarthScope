@@ -19,13 +19,14 @@ def detective(browser):
     page.goto(URL, wait_until="domcontentloaded")
     page.get_by_role("button", name="Детектив", exact=True).click()
     wizard = page.locator("#detective-workspace")
+    parameters = page.get_by_role("region", name="Параметры исследования детектива")
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     for title, route in [("Какие годы были необычно тёплыми или холодными?", "anomalies"),
                          ("Какой сезон меняется сильнее всего?", "seasonal")]:
         wizard.get_by_role("button", name=title, exact=True).tap()
-        wizard.get_by_role("button", name="Далее", exact=True).tap()
-        result = submit(page, wizard, route)
+        parameters.get_by_role("button", name="Далее", exact=True).tap()
+        result = submit(page, parameters, route)
         assert result["source"]["dataset"] == "MERRA2"
         expect(wizard.get_by_role("img").first).to_be_visible()
         if route == "anomalies":

@@ -3,6 +3,7 @@ import { CloudRain, Snowflake, Thermometer } from 'lucide-react'
 import { BISHKEK, REYKJAVIK } from '../hooks/useCoordinates'
 import { extremeEvents, fetchExtremes, validExtremesQuery, type ExtremeEvent, type ExtremesResponse } from '../lib/extremes'
 import { displayError, ru } from '../lib/ru'
+import { AnalysisControlsPortal } from './AnalysisControlsPortal'
 import { ExtremesResult } from './ExtremesResult'
 import { HeatwavesMode } from './HeatwavesMode'
 import { LocationMap } from './LocationMap'
@@ -19,10 +20,12 @@ const validPoint = (p: Point) => Number.isFinite(decimal(p.latitude)) && Math.ab
 export function ExtremesMode({ active }: { active: boolean }) {
   const [submode, setSubmode] = useState<'days' | 'heatwaves'>('days')
   return <div hidden={!active}>
+    {active && <AnalysisControlsPortal>
     <div className="research-segments" role="group" aria-label="Вид экстремальных событий">
       <Button type="button" variant="outline" aria-pressed={submode === 'days'} onClick={() => setSubmode('days')}>Отдельные дни</Button>
       <Button type="button" variant="outline" aria-pressed={submode === 'heatwaves'} onClick={() => setSubmode('heatwaves')}>Волны жары</Button>
     </div>
+    </AnalysisControlsPortal>}
     <DailyExtremesMode active={active && submode === 'days'} />
     <HeatwavesMode active={active && submode === 'heatwaves'} />
   </div>
@@ -79,15 +82,7 @@ function DailyExtremesMode({ active }: { active: boolean }) {
   }
   if (!active) return null
   return <div className="point-workbench">
-    <section aria-labelledby={`${id}-map`} className="point-map">
-      <h2 id={`${id}-map`} className="point-map-header font-semibold">1. Точка {compare ? selected : 'A'} · WGS84</h2>
-      <LocationMap selection={validPoint(current) ? numeric(current) : BISHKEK}
-        onSelect={p => change(point(p))} focusRequest={focus}
-        selectionLabel={compare ? selected : undefined}
-        otherSelection={compare && validPoint(selected === 'A' ? b : a) ? { ...numeric(selected === 'A' ? b : a), label: selected === 'A' ? 'B' : 'A' } : undefined}
-        describedBy={`${id}-map-hint`} className="point-map-viewport" />
-      <p id={`${id}-map-hint`} className="point-map-hint">Клик меняет только выбранную точку. {ru.app.mapHint} Координаты можно ввести с клавиатуры. { !validPoint(current) && 'Ввод некорректен: карта временно показывает Бишкек.'}</p>
-    </section>
+    <AnalysisControlsPortal>
     <aside aria-label="Параметры экстремальных событий" className="point-controls">
       <form onSubmit={run} noValidate className="space-y-5">
         <h2 className="font-semibold">Погодные экстремумы</h2>
@@ -137,6 +132,16 @@ function DailyExtremesMode({ active }: { active: boolean }) {
         {loading && <Button type="button" variant="outline" onClick={cancel}>Отменить запрос</Button>}
       </form>
     </aside>
+    </AnalysisControlsPortal>
+    <section aria-labelledby={`${id}-map`} className="point-map">
+      <h2 id={`${id}-map`} className="point-map-header font-semibold">1. Точка {compare ? selected : 'A'} · WGS84</h2>
+      <LocationMap selection={validPoint(current) ? numeric(current) : BISHKEK}
+        onSelect={p => change(point(p))} focusRequest={focus}
+        selectionLabel={compare ? selected : undefined}
+        otherSelection={compare && validPoint(selected === 'A' ? b : a) ? { ...numeric(selected === 'A' ? b : a), label: selected === 'A' ? 'B' : 'A' } : undefined}
+        describedBy={`${id}-map-hint`} className="point-map-viewport" />
+      <p id={`${id}-map-hint`} className="point-map-hint">Клик меняет только выбранную точку. {ru.app.mapHint} Координаты можно ввести с клавиатуры. { !validPoint(current) && 'Ввод некорректен: карта временно показывает Бишкек.'}</p>
+    </section>
     <main id="extremes-workspace" tabIndex={-1} aria-busy={loading} className="point-results space-y-4">
       <h2 className="text-xl font-semibold">Результаты · Погодные экстремумы</h2>
       <div role="status" className="space-y-2 text-sm text-secondary">

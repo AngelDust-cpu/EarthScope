@@ -64,14 +64,6 @@ function ComparisonResult({ data }: { data: CompareResponse }) {
   const difference = data.comparison.slope_difference_per_decade
 
   return <>
-    <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
-      <PointSummary label="A" response={a} /><PointSummary label="B" response={b} />
-    </div>
-    <Alert tone="info" title="Разность наклонов A − B · только описательная оценка">
-      <p className="font-semibold">{difference === null ? 'Недостаточно общих полных лет' : formatSigned(difference, a.unit)} · общих полных лет: {data.comparison.years_used}.</p>
-      <p>Наклон ряда годовых разностей A − B на общих полных годах; это не обязательно разность двух индивидуальных наклонов выше. Положительный знак: наклон A больше, чем B; отрицательный — меньше.</p>
-      <p>Статистическая значимость различия не оценивается; доверительный интервал и p-значение для разности наклонов не рассчитываются.</p>
-    </Alert>
     <Card>
       <CardHeader><CardTitle>{variableLabel(a.variable)} · A / B · {a.start_year}–{a.end_year} UTC</CardTitle></CardHeader>
       <CardContent className="space-y-4">
@@ -123,5 +115,13 @@ function ComparisonResult({ data }: { data: CompareResponse }) {
       </CardContent>
     </Card>
     <p className="text-xs text-muted">NASA POWER: сеточные данные реанализа, не измерения станции в выбранной точке и не прогноз. Только полные календарные годы. OLS предполагает независимые ошибки и постоянную дисперсию; автокорреляция и пространственная зависимость ограничивают выводы. Сравнение исследовательское, причинность не устанавливается.</p>
+    <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+      <PointSummary label="A" response={a} /><PointSummary label="B" response={b} />
+    </div>
+    <Alert tone="info" title="Разность наклонов A − B · только описательная оценка">
+      <p className="font-semibold">{difference === null ? 'Недостаточно общих полных лет' : formatSigned(difference, a.unit)} · общих полных лет: {data.comparison.years_used}.</p>
+      <p>Наклон ряда годовых разностей A − B на общих полных годах; это не обязательно разность двух индивидуальных наклонов. Положительный знак: наклон A больше, чем B; отрицательный — меньше.</p>
+      <p>Статистическая значимость различия не оценивается; доверительный интервал и p-значение для разности наклонов не рассчитываются.</p>
+    </Alert>
   </>
 }

@@ -569,3 +569,17 @@ def test_precipitation_contract_is_unchanged(no_cache):
     assert "parameters=PRECTOTCORR" in str(capture[0].url)
     assert source["parameter"] == "PRECTOTCORR"
     assert source["daily_unit"] == "mm/day"
+
+
+def test_non_utf8_cache_entry_is_refetched_and_repaired(cache_dir):
+    load(mock_transport(make_payload(days={"19900101": 21.5})))
+    (cache_file,) = cache_dir.glob("*.json")
+    cache_file.write_bytes(b"\xff\xfe")
+    capture = []
+    daily, source = load(mock_transport(make_payload(days={"19900101": 23.0}), capture=capture))
+    assert daily == {"19900101": 23.0}
+    assert source["cached"] is False
+    assert len(capture) == 1
+    _, cached = load(mock_transport(make_payload(days={"19900101": 24.0}), capture=capture))
+    assert cached["cached"] is True
+    assert len(capture) == 1

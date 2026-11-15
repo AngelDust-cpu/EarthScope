@@ -161,7 +161,11 @@ function WorldRaster({ layer, mode, onSelect }: {
   const map = useMap()
   const canvas = useRef<HTMLCanvasElement | null>(null)
   const currentLayer = useRef(layer)
-  useEffect(() => { currentLayer.current = layer }, [layer])
+  const currentMode = useRef(mode)
+  useEffect(() => {
+    currentLayer.current = layer
+    currentMode.current = mode
+  }, [layer, mode])
   const frames = useMemo(() => new Map<RasterMode, ImageData>(), [layer])
   useEffect(() => {
     const pane = map.getPane('regional-cells')!
@@ -187,7 +191,10 @@ function WorldRaster({ layer, mode, onSelect }: {
       const cell = worldCellAt(latlng.lat, latlng.lng)
       const visibleLayer = currentLayer.current
       const slope = visibleLayer.slopes[cell.index]
-      const value = Number.isFinite(slope) ? `${signed(slope)} ${trendUnit(visibleLayer.variable === 'temperature' ? '°C' : 'mm')}` : 'Недостаточно данных'
+      const flag = visibleLayer.flags[cell.index]
+      const value = currentMode.current.startsWith('significance')
+        ? (Number.isFinite(flag) ? (flag === 1 ? 'q ≤ 0,10' : 'q > 0,10') : 'Недостаточно данных для BY')
+        : (Number.isFinite(slope) ? `${signed(slope)} ${trendUnit(visibleLayer.variable === 'temperature' ? '°C' : 'mm')}` : 'Недостаточно данных')
       content.textContent = `${cell.latitude.toFixed(3)}°, ${cell.longitude.toFixed(3)}° · ${value}`
       tooltip.setLatLng(latlng)
       if (!map.hasLayer(tooltip)) tooltip.addTo(map)
@@ -250,7 +257,7 @@ export const RegionalTrendGrid = memo(function RegionalTrendGrid({ data, mode, l
     preferCanvas zoomControl={false} scrollWheelZoom={false} inertia={false}
     zoomAnimation={false} markerZoomAnimation={false} fadeAnimation={false} trackResize={false}
     className="rtm-map-canvas"
-    aria-label="Сетка региональных трендов; выбор с клавиатуры доступен в списке ячеек">
+    aria-label="Карта климатических трендов; для выбора с клавиатуры используйте поля координат">
     <ZoomControl zoomInTitle="Увеличить" zoomOutTitle="Уменьшить" />
     <RegionalMapControls bounds={globalLayer ? WORLD_BOUNDS : bounds} region={globalLayer ? 'world' : data?.metadata.region_id} />
     {world && <GeoJSON data={world} interactive={false}

@@ -432,7 +432,7 @@ def _read_cache(path: Path, request_url: str, parameter: str) -> dict | None:
     """Load a cache entry; return None on any miss, corruption or mismatch."""
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     try:
         entry = json.loads(text)

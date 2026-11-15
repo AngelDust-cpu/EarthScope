@@ -69,9 +69,9 @@ export function ControlPanel(p: ControlPanelProps) {
     if (Number.isInteger(a) && Number.isInteger(b) && a >= min && b <= max && b - a + 1 >= count) p.onRangeChange(a, b)
   }
   return (
-    <form onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-5">
-      <h2 className="text-sm font-semibold">{c.title}</h2>
-      <fieldset hidden={p.stage === 'period'} className="min-w-0 space-y-3">
+    <form onSubmit={submit} noValidate className="research-query flex min-w-0 flex-col gap-5">
+      <h2 className="query-title text-sm font-semibold">{c.title}</h2>
+      <fieldset hidden={p.stage === 'period'} className="query-coords min-w-0 space-y-3">
         <legend className="mb-2 text-sm font-medium">{p.pointLabel ?? c.point}</legend>
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
           <Field htmlFor={`${id}-lat`} label={c.latitude}>
@@ -93,12 +93,12 @@ export function ControlPanel(p: ControlPanelProps) {
             }}>{label}</Button>)}
         </div>
       </fieldset>
-      <div hidden={!!p.stage}><Field htmlFor={`${id}-variable`} label={c.variable} hint={p.variable === 'temperature' ? c.temperatureHint : c.precipitationHint}>
+      <div className="query-variable" hidden={!!p.stage}><Field htmlFor={`${id}-variable`} label={c.variable} hint={p.variable === 'temperature' ? c.temperatureHint : c.precipitationHint}>
         <Select id={`${id}-variable`} value={p.variable} onChange={e => p.onVariableChange(e.target.value as Variable)}>
           {VARIABLES.map(value => <option key={value} value={value}>{c[value]}</option>)}
         </Select>
       </Field></div>
-      <fieldset hidden={p.stage === 'coordinates'} className="min-w-0 space-y-3">
+      <fieldset hidden={p.stage === 'coordinates'} className="query-years min-w-0 space-y-3">
         <legend className="mb-2 text-sm font-medium">{c.period}</legend>
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
           <Field htmlFor={`${id}-start`} label={c.start}>
@@ -111,10 +111,10 @@ export function ControlPanel(p: ControlPanelProps) {
         <p id={`${id}-range-hint`} className="text-xs text-muted">{validRange ? c.periodHint(count) : c.rangeError(min, max, count)}</p>
       </fieldset>
       {p.coverageError && <Alert tone="error" title={c.coverageError}>{c.coverageHint}</Alert>}
-      <Button type="submit" disabled={p.stage === 'coordinates' ? !validPoint : p.loading || !p.coverage || !validPoint || !validRange || p.submitDisabled} className="w-full">
+      <Button type="submit" disabled={p.stage === 'coordinates' ? !validPoint : p.loading || !p.coverage || !validPoint || !validRange || p.submitDisabled} className="query-run w-full">
         {p.loading && <Spinner className="size-4 animate-spin" />}{p.stage === 'coordinates' ? 'Далее' : p.loading ? c.loading : c.submit}
       </Button>
-      <p className="text-xs text-muted">{c.draft}</p>
+      <p className="query-draft text-xs text-muted">{c.draft}</p>
     </form>
   )
 }

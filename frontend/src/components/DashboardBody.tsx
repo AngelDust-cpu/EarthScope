@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { analysisPdfRequest } from '../lib/pdf'
 import { PdfDownloadButton } from './PdfDownloadButton'
+import { interpretTrend } from '../lib/detective'
 
 import type { AsyncState } from '../hooks/useAsyncData'
 import { downloadCsv } from '../lib/api'
@@ -30,6 +31,7 @@ export interface DashboardBodyProps {
   coverage: Coverage | null
   state: AsyncState<TrendResponse>
   metaDescription: string
+  showInterpretation?: boolean
   onRetry: () => void
 }
 
@@ -151,7 +153,7 @@ function SourceDetails({ response }: { response: TrendResponse }) {
   )
 }
 
-export function DashboardBody({ coverage, state, metaDescription, onRetry }: DashboardBodyProps) {
+export function DashboardBody({ coverage, state, metaDescription, showInterpretation = false, onRetry }: DashboardBodyProps) {
   const { data, loading, error } = state
   const coverageLabel = coverage ? `${coverage.min_year}–${coverage.max_year}` : '—'
 
@@ -178,7 +180,7 @@ export function DashboardBody({ coverage, state, metaDescription, onRetry }: Das
   if (!data) {
     if (!loading) return <EmptyState title={r.empty}>{r.emptyHint}</EmptyState>
     return (
-      <div className="flex flex-col gap-4">
+      <div className="analysis-output flex flex-col gap-4">
         <KpiSkeleton />
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -191,15 +193,16 @@ export function DashboardBody({ coverage, state, metaDescription, onRetry }: Das
 
   const gapCount = data.series.filter((point) => point.value === null).length
   const filename = csvFilename(data)
+  const [conclusion, ...methodNotes] = showInterpretation ? interpretTrend(data) : []
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="analysis-output flex flex-col gap-4">
       {error && (
         <Alert tone="error" title={r.error} action={<Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={loading}>{r.retry}</Button>}>
           {displayError(error)}
         </Alert>
       )}
-      <KpiRow response={data} />
+      <div className="analysis-metrics"><KpiRow response={data} /></div>
 
       {data.warnings.length > 0 ? (
         <Alert tone="warning" title={r.dataCoverage}>
@@ -214,7 +217,7 @@ export function DashboardBody({ coverage, state, metaDescription, onRetry }: Das
         </Alert>
       ) : null}
 
-      <Card>
+      <Card className="analysis-chart">
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div className="min-w-0">
             <CardTitle>
@@ -278,6 +281,11 @@ export function DashboardBody({ coverage, state, metaDescription, onRetry }: Das
             <div className="h-px bg-raised" />
             <div className="flex flex-col gap-2 text-[11px] leading-relaxed text-muted">
               <p className="text-sm font-medium text-ink">{r.interpretation}</p>
+              {conclusion && <p className="text-sm text-secondary">{conclusion}</p>}
+              {methodNotes.length > 0 && <details>
+                <summary className="cursor-pointer py-1 text-sm text-secondary">Неопределённость и допущения модели</summary>
+                <ul className="space-y-2 py-2">{methodNotes.map(note => <li key={note}>{note}</li>)}</ul>
+              </details>}
               <p>
                 {r.method}
               </p>

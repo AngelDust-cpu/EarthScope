@@ -7,10 +7,10 @@ import { ru, unitLabel, variableLabel } from '../lib/ru'
 import type { SeriesPoint, Variable } from '../lib/types'
 
 const FONT = 'IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace'
-const AXIS = '#a9b0b8'
-const GRID = '#2a313a'
-const SERIES = '#e7eaee'
-const FIT = '#86afd9'
+const AXIS = '#ababab'
+const GRID = '#343434'
+const SERIES = '#acb7c0'
+const FIT = '#ebebeb'
 const SECOND_SERIES = '#e5a35e'
 
 export interface TrendChartProps {
@@ -54,7 +54,7 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
         customdata: series.map((point) => point.valid_days),
         hovertemplate: `%{x}: %{y:,.2f} ${displayUnit}<br>${ru.chart.validDays}: %{customdata}<extra></extra>`,
         line: { color: SERIES, width: 2, shape: 'linear' },
-        marker: { color: SERIES, size: 5, line: { color: '#111418', width: 1 } },
+        marker: { color: SERIES, size: 5, line: { color: '#171717', width: 1 } },
         connectgaps: false,
       },
     ]
@@ -118,7 +118,7 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
         linecolor: GRID,
         tickfont: { size: 10 },
         showspikes: true,
-        spikecolor: '#606973',
+        spikecolor: '#626262',
         spikethickness: 1,
         spikedash: 'dot',
       },
@@ -132,8 +132,8 @@ export function TrendChart({ series, variable, unit, className, comparisonSeries
         tickfont: { size: 10 },
       },
       hoverlabel: {
-        bgcolor: '#1a1f26',
-        bordercolor: '#606973',
+        bgcolor: '#1e1e1e',
+        bordercolor: '#626262',
         font: { family: FONT, size: 11, color: SERIES },
       },
     }

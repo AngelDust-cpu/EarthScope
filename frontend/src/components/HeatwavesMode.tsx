@@ -4,6 +4,7 @@ import { fetchHeatwaves, validHeatwavesQuery, type HeatwavesResponse } from '../
 import { displayError, ru } from '../lib/ru'
 import { HeatwavesResult } from './HeatwavesResult'
 import { LocationMap } from './LocationMap'
+import { AnalysisControlsPortal } from './AnalysisControlsPortal'
 import { Button } from './ui/button'
 import { Field, TextInput } from './ui/field'
 
@@ -41,6 +42,7 @@ export function HeatwavesMode({ active }: { active: boolean }) {
   }
   if (!active) return null
   return <div className="point-workbench">
+    <AnalysisControlsPortal>
     <aside className="point-controls" aria-label="Параметры волн жары">
       <form onSubmit={run} noValidate className="space-y-4">
         <h2 className="font-semibold">Волны жары</h2>
@@ -61,6 +63,7 @@ export function HeatwavesMode({ active }: { active: boolean }) {
         {loading && <Button type="button" variant="outline" onClick={cancel}>Отменить запрос</Button>}
       </form>
     </aside>
+    </AnalysisControlsPortal>
     <section className="point-map" aria-label="Точка волн жары">
       <h2 className="point-map-header font-semibold">Точка исследования · WGS84</h2>
       <LocationMap selection={validPoint ? query : BISHKEK} onSelect={setPoint} focusRequest={focus} describedBy={`${id}-map-hint`} className="point-map-viewport" />

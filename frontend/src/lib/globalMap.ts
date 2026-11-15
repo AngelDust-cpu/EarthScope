@@ -25,7 +25,12 @@ export interface WorldCellDetails {
 
 export async function fetchWorld(variable: RegionalVariable, signal: AbortSignal): Promise<WorldLayer> {
   const response = await fetch(apiUrl(`/api/maps/world?variable=${variable}`), { signal })
-  if (response.status === 503) throw new Error('Глобальный архив NASA POWER ещё не подготовлен на сервере.')
+  if (response.status === 503) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.error?.code === 'GLOBAL_ARCHIVE_INVALID'
+      ? 'Серверу нужно восстановить архив NASA POWER.'
+      : 'Глобальный архив NASA POWER пока недоступен.')
+  }
   if (!response.ok) throw new Error('Не удалось загрузить глобальный слой.')
   const body = await response.arrayBuffer()
   const limit = Number(response.headers.get('X-EarthScope-Scale'))

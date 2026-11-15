@@ -48,7 +48,7 @@ def exercise_desktop(browser):
     map_element.get_by_role("button", name="Приблизить").click()
     page.wait_for_function("() => !document.querySelector('.leaflet-zoom-anim')")
     before_click = map_element.locator(".leaflet-map-pane").evaluate("(node) => node.style.transform")
-    latitude = page.get_by_label(re.compile("^Широта"))
+    latitude = page.get_by_label(re.compile("^Широта")).filter(visible=True)
     previous_latitude = latitude.input_value()
     map_element.click(position={"x": int(box["width"] * .27), "y": 160})
     expect(latitude).not_to_have_value(previous_latitude)
@@ -58,15 +58,24 @@ def exercise_desktop(browser):
 
     variable = page.get_by_role("combobox")
     variable.select_option("precipitation")
-    page.get_by_label("Первый год").fill("1991")
-    page.get_by_label("Последний год").fill("1980")
+    page.get_by_label("Первый год").filter(visible=True).fill("1991")
+    page.get_by_label("Последний год").filter(visible=True).fill("1980")
     expect(run).to_be_disabled()
-    page.get_by_label("Последний год").fill("2025")
+    page.get_by_label("Последний год").filter(visible=True).fill("2025")
     assert map_element.locator(".leaflet-map-pane").evaluate("(node) => node.style.transform") == before_click
     expect(page.get_by_text("Анализ ещё не запущен", exact=True)).to_be_visible()
     assert not trend_requests, trend_requests
 
-    page.get_by_role("button", name="К выбранной точке").click()
+    selected_latitude = latitude.input_value()
+    longitude = page.get_by_label(re.compile("^Долгота")).filter(visible=True)
+    selected_longitude = longitude.input_value()
+    center_button = page.get_by_role("button", name="К выбранной точке")
+    center_button.click()
+    expect(latitude).to_have_value(selected_latitude)
+    expect(longitude).to_have_value(selected_longitude)
+    center_button.press("Enter")
+    expect(latitude).to_have_value(selected_latitude)
+    expect(longitude).to_have_value(selected_longitude)
     page.wait_for_function("""() => {
         const map = [...document.querySelectorAll('.leaflet-container')]
             .find(node => node.getClientRects().length > 0).getBoundingClientRect()
@@ -74,7 +83,7 @@ def exercise_desktop(browser):
         return Math.abs((pin.x + pin.width / 2) - (map.x + map.width / 2)) < 3
     }""")
     page.get_by_role("button", name="Бишкек, Кыргызстан").click()
-    page.get_by_label("Первый год").fill("1990")
+    page.get_by_label("Первый год").filter(visible=True).fill("1990")
     assert not trend_requests, trend_requests
     submitted_view = map_element.locator(".leaflet-map-pane").evaluate("(node) => node.style.transform")
     with page.expect_response(is_trend, timeout=45000) as reply:
@@ -124,7 +133,7 @@ def exercise_mobile(browser):
     page.goto(URL, wait_until="domcontentloaded")
     map_element = page.locator(".leaflet-container:visible")
     expect(map_element).to_be_visible()
-    lat = page.get_by_label(re.compile("^Широта"))
+    lat = page.get_by_label(re.compile("^Широта")).filter(visible=True)
     old = lat.input_value()
     map_element.tap(position={"x": 100, "y": 90})
     expect(lat).not_to_have_value(old)

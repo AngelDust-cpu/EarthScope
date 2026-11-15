@@ -117,6 +117,8 @@ def _window_totals(
 ) -> tuple[int, float]:
     """Count valid days and sum values over the given (year, month) cells."""
 
+    if counts.empty:
+        return 0, 0.0
     valid_days = 0
     total = 0.0
     for cell in cells:

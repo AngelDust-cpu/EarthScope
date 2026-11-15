@@ -5,6 +5,7 @@ import { fetchAnomalies, fetchSeasonal, type AnomalyResponse, type SeasonalRespo
 import { displayError, ru } from '../lib/ru'
 import type { Coverage, Variable } from '../lib/types'
 import { AnomalyResult, SeasonalResult } from './ClimateResults'
+import { AnalysisControlsPortal } from './AnalysisControlsPortal'
 import { LocationMap } from './LocationMap'
 import { Button } from './ui/button'
 import { Field, Select, TextInput } from './ui/field'
@@ -89,15 +90,10 @@ export function ClimateMode({ active, mode, coverage }: Props) {
 
   if (!active) return null
   return <div>
-    <div className="point-workbench">
-      <section aria-labelledby={`${id}-map`} className="point-map">
-        <h2 id={`${id}-map`} className="point-map-header font-semibold">1. Выберите точку</h2>
-        <LocationMap selection={point.coordinates} onSelect={p => select(p.latitude, p.longitude)} focusRequest={focus}
-          describedBy={`${id}-map-hint`} className="point-map-viewport" />
-        <p id={`${id}-map-hint`} className="point-map-hint">{ru.app.mapHint}</p>
-      </section>
+    <div className="point-workbench calendar-workbench">
+      <AnalysisControlsPortal>
       <aside aria-label="Параметры климатического анализа" className="point-controls">
-        <form onSubmit={run} noValidate className="space-y-5">
+        <form onSubmit={run} noValidate className="calendar-query space-y-5">
           <h2 className="font-semibold">{ru.app.modes[mode]}</h2>
           <p className="text-xs text-muted">{mode === 'anomalies' ? 'Сравните каждый год с выбранной базой.' : 'Исследуйте сезонные и месячные изменения в одной точке.'} Данные загружаются только по кнопке.</p>
           <fieldset className="min-w-0 space-y-3">
@@ -153,6 +149,13 @@ export function ClimateMode({ active, mode, coverage }: Props) {
           {coverage.error && <div role="alert" className="text-xs"><p>{displayError(coverage.error)}</p><Button type="button" variant="outline" onClick={coverage.retry}>Повторить проверку периода</Button></div>}
         </form>
       </aside>
+      </AnalysisControlsPortal>
+      <section aria-labelledby={`${id}-map`} className="point-map">
+        <h2 id={`${id}-map`} className="point-map-header font-semibold">1. Выберите точку</h2>
+        <LocationMap selection={point.coordinates} onSelect={p => select(p.latitude, p.longitude)} focusRequest={focus}
+          describedBy={`${id}-map-hint`} className="point-map-viewport" />
+        <p id={`${id}-map-hint`} className="point-map-hint">{ru.app.mapHint}</p>
+      </section>
       <main id="climate-workspace" tabIndex={-1} aria-busy={loading} className="point-results space-y-4">
         <h2 className="text-xl font-semibold">Результаты · {ru.app.modes[mode]}</h2>
         <div role="status" className="space-y-2 text-sm text-secondary">

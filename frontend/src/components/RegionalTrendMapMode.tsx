@@ -2,17 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { REGIONAL_COLORS, signed, trendUnit, type RegionalLayer, type RegionalVariable } from '../lib/regionalMap'
 import { RegionalTrendGrid } from './RegionalTrendGrid'
 import { PdfDownloadButton } from './PdfDownloadButton'
+import { AnalysisControlsPortal } from './AnalysisControlsPortal'
 import { apiUrl } from '../lib/apiBase'
-import { fetchWorld, fetchWorldCell, WORLD_SOURCE, WORLD_YEARS, type WorldLayer, type WorldCellDetails, worldCellAt } from '../lib/globalMap'
+import { fetchWorld, fetchWorldCell, WORLD_LATITUDE, WORLD_SOURCE, WORLD_YEARS, type WorldLayer, type WorldCellDetails, worldCellAt } from '../lib/globalMap'
 import type { RasterMode } from '../lib/regionalRaster'
 import './RegionalTrendMapMode.css'
 
 export default function RegionalTrendMapMode({ hidden = false }: { hidden?: boolean }) {
   const [world, setWorld] = useState<WorldLayer | null>(null)
   const [worldSelection, setWorldSelection] = useState<ReturnType<typeof worldCellAt> | null>(null)
-  const [worldDetails, setWorldDetails] = useState<WorldCellDetails | null>(null)
-  const [cellRequest, setCellRequest] = useState<string | null>(null)
-  const [cellError, setCellError] = useState('')
+  const [cellResult, setCellResult] = useState<{ url: string; details?: WorldCellDetails; error?: string } | null>(null)
+  const [latitude, setLatitude] = useState('42.875')
+  const [longitude, setLongitude] = useState('74.6')
   const [variable, setVariable] = useState<RegionalVariable>('temperature')
   const [layer, setLayer] = useState<RegionalLayer>('trend')
   const [surface, setSurface] = useState<'smooth' | 'native'>('smooth')
@@ -21,11 +22,20 @@ export default function RegionalTrendMapMode({ hidden = false }: { hidden?: bool
   const globalLayer = world
   const [loading, setLoading] = useState(false), [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  const cellRequest = globalLayer && worldSelection
+    ? apiUrl(`/api/maps/world/cell?variable=${globalLayer.variable}&row=${worldSelection.row}&col=${worldSelection.col}`)
+    : null
+  const currentCell = cellResult?.url === cellRequest ? cellResult : null
+  const worldDetails = currentCell?.details
+  const selectedLatitude = Number(latitude.replace(',', '.'))
+  const selectedLongitude = Number(longitude.replace(',', '.'))
+  const coordinatesValid = Boolean(latitude.trim() && longitude.trim()) &&
+    Math.abs(selectedLatitude) <= WORLD_LATITUDE && Math.abs(selectedLongitude) <= 180
   useEffect(() => {
+    setError('')
     if (hidden || world?.variable === variable) { setLoading(false); return }
     const request = new AbortController()
     setLoading(true)
-    setError('')
     fetchWorld(variable, request.signal)
       .then(result => { if (!request.signal.aborted) setWorld(result) })
       .catch(reason => { if (!request.signal.aborted) setError(reason.message) })
@@ -33,24 +43,22 @@ export default function RegionalTrendMapMode({ hidden = false }: { hidden?: bool
     return () => request.abort()
   }, [hidden, variable, world, retry])
   useEffect(() => {
-    if (!globalLayer || !worldSelection) return
+    if (hidden || !globalLayer || !worldSelection || !cellRequest) return
     const request = new AbortController()
-    setWorldDetails(null)
-    setCellRequest(null)
-    setCellError('')
     fetchWorldCell(globalLayer.variable, worldSelection.row, worldSelection.col, request.signal)
       .then(result => { if (!request.signal.aborted) {
-        setWorldDetails(result)
-        setCellRequest(apiUrl(`/api/maps/world/cell?variable=${globalLayer.variable}&row=${worldSelection.row}&col=${worldSelection.col}`))
+        setCellResult({ url: cellRequest, details: result })
       } })
-      .catch(error => { if (!request.signal.aborted) setCellError(error.message) })
+      .catch(error => { if (!request.signal.aborted) setCellResult({ url: cellRequest, error: error.message }) })
     return () => request.abort()
-  }, [globalLayer, worldSelection])
+  }, [cellRequest, globalLayer, hidden, worldSelection])
   const limit = globalLayer?.limit ?? 1
   const ignoreRegionalSelection = useCallback(() => {}, [])
   return <section hidden={hidden} lang="ru" className="rtm" aria-labelledby="regional-map-title">
     <h2 id="regional-map-title" tabIndex={-1}>Климатические тренды мира</h2>
-    <div className="rtm-controls">
+    {!hidden && <AnalysisControlsPortal>
+      <div className="rtm rtm-parameters point-controls">
+        <div className="rtm-controls">
       <label>Показатель<select aria-label="Показатель" value={variable} onChange={e => setVariable(e.target.value as RegionalVariable)}>
         <option value="temperature">Температура (°C)</option><option value="precipitation">Осадки (мм/год)</option>
       </select></label>
@@ -69,8 +77,22 @@ export default function RegionalTrendMapMode({ hidden = false }: { hidden?: bool
           <button type="button" aria-pressed={surface === 'native'} onClick={() => setSurface('native')}>Исходная сетка</button>
         </div>
       </div>
+        </div>
+        {globalLayer && <form className="rtm-actions" aria-label="Выбор ячейки по координатам" onSubmit={event => {
+          event.preventDefault()
+          if (coordinatesValid) setWorldSelection(worldCellAt(selectedLatitude, selectedLongitude))
+        }}>
+          <label>Широта<input value={latitude} onChange={event => setLatitude(event.target.value)} inputMode="decimal" /></label>
+          <label>Долгота<input value={longitude} onChange={event => setLongitude(event.target.value)} inputMode="decimal" /></label>
+          <button type="submit" disabled={!coordinatesValid}>Открыть ячейку</button>
+          {!coordinatesValid && <small>Широта от −85,05° до 85,05°, долгота от −180° до 180°.</small>}
+        </form>}
+      </div>
+    </AnalysisControlsPortal>}
+    <div className="rtm-status" role="status">
+      {loading && 'Загружаем слой NASA POWER… '}
+      {globalLayer && `На карте: ${globalLayer.variable === 'temperature' ? 'температура' : 'осадки'} · ${WORLD_YEARS} · сетка 0,5° × 0,625°`}
     </div>
-    <div className="rtm-status" role="status">{loading ? 'Загружаем слой NASA POWER…' : globalLayer ? `${globalLayer.variable === 'temperature' ? 'Температура' : 'Осадки'} · ${WORLD_YEARS} · глобальная сетка 0,5° × 0,625°` : ''}</div>
     {error && <p role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Повторить загрузку</button></p>}
     <div className="rtm-workspace">
       <div className="rtm-map-column">
@@ -118,7 +140,7 @@ export default function RegionalTrendMapMode({ hidden = false }: { hidden?: bool
             <p>p / q BY · {worldDetails.p?.toPrecision(4) ?? '—'} / {worldDetails.q?.toPrecision(4) ?? '—'}</p>
             <p>Валидных лет · {worldDetails.series.filter(entry => entry.value != null).length} из {worldDetails.series.length}</p>
             <details><summary>Годовые значения</summary><table><tbody>{worldDetails.series.map(entry => <tr key={entry.year}><th>{entry.year}</th><td>{entry.value?.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) ?? '—'} {entry.value != null ? worldDetails.unit.replace('mm', 'мм') : ''}</td></tr>)}</tbody></table></details>
-          </> : <p>{cellError || (worldSelection ? 'Загружаем годовой ряд…' : 'Нажмите на карту, чтобы открыть исходную ячейку NASA.')}</p>}
+          </> : <p role="status">{currentCell?.error || (worldSelection ? 'Загружаем годовой ряд…' : 'Выберите ячейку на карте или по координатам.')}</p>}
         </> : <p>После загрузки нажмите на карту, чтобы открыть ячейку NASA.</p>}
       </aside>
     </div>

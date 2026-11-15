@@ -18,6 +18,7 @@ import math
 import os
 import re
 from urllib.parse import urlsplit
+from zipfile import BadZipFile
 
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,6 +32,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import analysis, climate, extremes, heatwaves, regional_map, profile
 from .power import PowerError, load_daily
+from .report_format import wants_pdf
 from .regional_schemas import RegionalMapResponse, RegionalRegionsResponse
 from . import global_map
 from .schemas import (
@@ -816,6 +818,9 @@ def _register_routes(application: FastAPI) -> None:
             return load()
         except FileNotFoundError as exc:
             raise ApiError(503, 'GLOBAL_ARCHIVE_UNAVAILABLE', 'The NASA POWER world archive has not been prepared.') from exc
+        except (OSError, EOFError, BadZipFile, KeyError, ValueError) as exc:
+            logger.warning("NASA POWER world archive failed validation (%s)", type(exc).__name__)
+            raise ApiError(503, 'GLOBAL_ARCHIVE_INVALID', 'The NASA POWER world archive is invalid.') from exc
 
     @application.get('/api/maps/world', tags=['maps'])
     def world_map(variable: Literal['temperature', 'precipitation'] = 'temperature'):
@@ -940,7 +945,7 @@ class ResearchReportRoute(APIRoute):
         async def with_report(request: Request) -> Response:
             response = await handle(request)
             response.headers.append("Vary", "Accept")
-            if request.headers.get("accept") != "application/pdf" or response.status_code != 200:
+            if response.status_code != 200 or not wants_pdf(request.headers.get("accept", "")):
                 return response
             from .report_pdf import render_report
 

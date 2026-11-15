@@ -4,6 +4,7 @@ import { BISHKEK, REYKJAVIK, roundCoordinate, useCoordinates, type Coordinates }
 import { fetchProfile, validProfileQuery, type ProfileQuery, type ProfileResponse } from '../lib/profile'
 import { displayError } from '../lib/ru'
 import type { Coverage } from '../lib/types'
+import { AnalysisControlsPortal } from './AnalysisControlsPortal'
 import { LocationMap } from './LocationMap'
 import { ProfileResults } from './ProfileResults'
 import { Button } from './ui/button'
@@ -30,6 +31,7 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
   const [cancelled, setCancelled] = useState(false)
   const controller = useRef<AbortController | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  const parameters = useRef<HTMLFormElement>(null)
   const previousStep = useRef(step)
   const query = Object.fromEntries(Object.entries(fields).map(([key, text]) => [key, key.includes('year') ? (/^\d{4}$/.test(text) ? Number(text) : NaN) : decimal(text)])) as unknown as ProfileQuery
   const rawLatitude = query.latitude, rawLongitude = query.longitude
@@ -56,7 +58,7 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
   useEffect(() => { if (!active && controller.current) cancel() }, [active])
   useEffect(() => () => { controller.current?.abort(); controller.current = null }, [])
   useEffect(() => {
-    if (detective && active && previousStep.current !== step) heading.current?.focus()
+    if (detective && active && previousStep.current !== step) (parameters.current ?? heading.current)?.focus()
     previousStep.current = step
   }, [active, detective, step])
   async function run() {
@@ -97,8 +99,9 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
       <ol aria-label="Шаги исследования" className="research-step-list text-sm"><li>1. Вопрос</li>{steps.map((label, i) => <li key={label} aria-current={i === step ? 'step' : undefined}>{i + 2}. {label}</li>)}</ol>
       <Button type="button" variant="outline" onClick={() => { cancel(); onExit?.() }}>Новое исследование</Button>
     </div>}
-    <div className={detective ? 'grid min-w-0 items-start gap-5' : 'point-workbench'}>
-      <form hidden={detective && step === 2} noValidate onSubmit={event => { event.preventDefault(); if (detective && step === 0) { if (pointValid) { commit(); setStep(1) } } else void run() }} className="research-profile-form min-w-0 space-y-4">
+    {active && (!detective || step < 2) && <AnalysisControlsPortal>
+      <form ref={parameters} tabIndex={detective ? -1 : undefined} aria-label="Параметры климатического профиля"
+        noValidate onSubmit={event => { event.preventDefault(); if (detective && step === 0) { if (pointValid) { commit(); setStep(1) } } else void run() }} className="research-profile-form min-w-0 space-y-4">
         <fieldset hidden={detective && step !== 0} className="min-w-0 space-y-3">
           <legend className="mb-2 font-medium">Точка · WGS84, градусы</legend>
           <div className="grid grid-cols-2 gap-2">{input('latitude', 'Широта')}{input('longitude', 'Долгота')}</div>
@@ -126,6 +129,8 @@ export function ProfileMode({ active, coverage, detective = false, onExit }: {
         {coverage.error && <Alert tone="error" title="Не удалось проверить период" action={<Button type="button" variant="outline" onClick={coverage.retry}>Повторить проверку периода</Button>}>{displayError(coverage.error)}</Alert>}
         <p className="text-xs text-muted">Клик на карте и пресеты меняют только точку. Запрос отправляется только по кнопке.</p>
       </form>
+    </AnalysisControlsPortal>}
+    <div data-result={Boolean(current)} className={detective ? 'grid min-w-0 items-start gap-5' : 'point-workbench profile-workbench'}>
         <div hidden={detective && step !== 0} className="point-map min-w-0">
           <div className="point-map-header"><h2>Точка исследования</h2><span className="font-mono text-xs">WGS84</span></div>
           {active && <LocationMap selection={point.coordinates} onSelect={p => select(p)} focusRequest={focus} describedBy={`${id}-map-hint`} className="point-map-viewport" />}

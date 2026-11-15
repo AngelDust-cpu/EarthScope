@@ -51,6 +51,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 
 from . import analysis, climate, extremes
 from .power import PowerError, load_daily
+from .report_format import wants_pdf
 from .profile_schemas import (
     DEFAULT_COLD_THRESHOLD,
     DEFAULT_HOT_THRESHOLD,
@@ -224,7 +225,7 @@ def _validate_years(start_year: int, end_year: int, *, prefix: str = "") -> None
         raise _http_error(
             422,
             "INVALID_REQUEST",
-            f"{prefix}start_year must be less than or equal to end_year.",
+            f"{prefix}start_year must be less than or equal to {prefix}end_year.",
         )
 
 
@@ -782,10 +783,14 @@ def _limitations(sections: ProfileSections, query: ProfileQuery) -> list[str]:
         "Отсутствие статистической поддержки не доказывает отсутствие "
         "изменений. Различия сезонных наклонов статистически не проверялись. "
         "Наборы полных лет у показателей могут различаться.",
-        "Тренды — МНК по полным календарным годам; остатки предполагаются "
-        "независимыми и с постоянной дисперсией, автокорреляция не "
-        "моделируется, поэтому интервалы и p-значения могут быть "
-        "оптимистичными.",
+        "Для годовых и сезонных трендов интервалы и p-значения МНК "
+        "предполагают независимые остатки с постоянной дисперсией. "
+        "При автокорреляции эта оценка неопределённости может быть "
+        "оптимистичной.",
+        "Для пороговых событий, когда ряд подходит для статистического "
+        "вывода, интервалы и p-значения используют HAC(3). Эта поправка "
+        "учитывает зависимость остатков на коротких лагах. Вывод для "
+        "короткого или вырожденного ряда может быть недоступен.",
         "Повторный выбор точек, периодов, сезонов и порогов создаёт "
         "множественные сравнения; p-значения здесь не корректируются.",
         f"База аномалий задана явно: {query.baseline_start_year}–"
@@ -893,9 +898,13 @@ CSV_COLUMNS: tuple[str, ...] = (
 
 _UNITS_NOTE = (
     "units: annual_mean=°C (mean of complete daily T2M); annual_sum=mm (sum of "
-    "complete daily PRECTOTCORR); anomaly=°C; period_value=°C (mean over the "
+    "complete daily PRECTOTCORR); annual_value and baseline_mean=°C in the anomaly "
+    "section; anomaly=°C; period_value=°C (mean over the "
     "period); event_days=days per year; event_fraction=share of valid days; "
-    "ols_fitted/ols_fitted_rate=OLS estimate at a complete year"
+    "ols_fitted/ols_fitted_rate=OLS estimate at a complete year; "
+    "section_status describes availability; per_decade and ci95_low/high use "
+    "the row's trend unit; p_value is dimensionless; years_used counts years; "
+    "count_per_decade is the change in raw event days per decade"
 )
 
 
@@ -958,6 +967,9 @@ def _status_row(
     profile: ClimateProfileResponse,
 ) -> list[str]:
     threshold = getattr(profile.thresholds, name, None)
+    note = section.message or ""
+    if note and note.lstrip().startswith(("=", "+", "-", "@")):
+        note = "'" + note
     return [
         name,
         "",
@@ -969,7 +981,7 @@ def _status_row(
         "",
         "",
         "" if threshold is None else f"{threshold:g}",
-        section.message or "",
+        note,
     ]
 
 
@@ -1161,9 +1173,9 @@ def render_profile_csv(profile: ClimateProfileResponse) -> str:
 
     buffer = io.StringIO()
     for line in _csv_header(profile):
-        buffer.write(f"# {line}\n")
+        buffer.write("# " + " ".join(line.splitlines()) + "\n")
     for line in profile.limitations:
-        buffer.write(f"# limitation: {line}\n")
+        buffer.write("# limitation: " + " ".join(line.splitlines()) + "\n")
 
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(CSV_COLUMNS)
@@ -1192,11 +1204,7 @@ def render_profile_csv(profile: ClimateProfileResponse) -> str:
 
 # --- Routes ---------------------------------------------------------------
 def _wants_pdf(request: Request) -> bool:
-    accept = request.headers.get("accept", "")
-    return any(
-        part.split(";", 1)[0].strip().lower() == "application/pdf"
-        for part in accept.split(",")
-    )
+    return wants_pdf(request.headers.get("accept", ""))
 
 
 def _pdf_response(profile: ClimateProfileResponse) -> Response:

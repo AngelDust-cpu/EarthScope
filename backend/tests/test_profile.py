@@ -886,3 +886,38 @@ def test_profile_schema_defaults_match_the_documented_thresholds() -> None:
         0.0,
         20.0,
     )
+
+
+def test_profile_csv_neutralizes_leading_control_characters_in_section_notes(client, monkeypatch):
+    fake = FakePower()
+
+    def load(**kwargs):
+        if kwargs["variable"] == "temperature_max":
+            raise PowerError("= synthetic upstream note", "POWER_UNAVAILABLE")
+        return fake(**kwargs)
+
+    monkeypatch.setattr(profile, "load_daily", load)
+    response = client.get(profile.PROFILE_PATH + ".csv", params=_params())
+    assert response.status_code == 200
+    rows = csv.DictReader(line for line in response.content.decode("utf-8-sig").splitlines() if not line.startswith("#"))
+    hot = next(row for row in rows if row["section"] == "hot_days")
+    assert hot["status"] == "error"
+    assert hot["note"] == "'= synthetic upstream note"
+
+
+@pytest.mark.parametrize(("accept", "expected"), [
+    ("application/pdf;q=0, application/json", "application/json"),
+    ("application/json;q=.2, application/pdf;q=.7", "application/pdf"),
+])
+def test_profile_respects_pdf_preference(client, monkeypatch, accept, expected):
+    response, _ = _profile(client, monkeypatch, headers={"Accept": accept})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == expected
+
+
+def test_profile_limitations_distinguish_ols_from_extremes_hac(client, monkeypatch):
+    response, _ = _profile(client, monkeypatch)
+    assert response.status_code == 200
+    notes = response.json()["limitations"]
+    assert any("годовых и сезонных" in note and "МНК" in note for note in notes)
+    assert any("пороговых событий" in note and "HAC(3)" in note for note in notes)

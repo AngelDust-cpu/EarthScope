@@ -374,3 +374,10 @@ def test_anomaly_series_rejects_invalid_inputs() -> None:
         anomaly_series(daily, "humidity", 1990, 1991, 1990, 1991)
     with pytest.raises(DataContractError, match="mapping"):
         anomaly_series([("19900101", 1.0)], "temperature", 1990, 1991, 1990, 1991)
+
+
+@pytest.mark.parametrize("daily, variable", [({}, "temperature"), ({"20200229": -1}, "precipitation")])
+def test_all_missing_season_keeps_leap_window_and_null_value(daily, variable):
+    assert aggregate_period(daily, variable, 2020, 2020, "winter") == [
+        AnnualAggregate(year=2020, value=None, valid_days=0, expected_days=91),
+    ]

@@ -848,3 +848,17 @@ def test_compare_upstream_failure_stays_json_with_pdf_accept(
         headers={"Accept": "application/pdf"},
     )
     _assert_error(response, 502, "POWER_UNAVAILABLE")
+
+
+@pytest.mark.parametrize(("accept", "expected"), [
+    ("application/pdf;q=1", "application/pdf"),
+    ("application/pdf, application/json;q=0.5", "application/pdf"),
+    ("application/pdf;q=0, application/json;q=1", "application/json"),
+    ("application/pdf;q=0.2, */*;q=0.8", "application/json"),
+])
+def test_trend_respects_pdf_preference(client, monkeypatch, accept, expected):
+    annual = {year: float(year - 1990) for year in range(1990, 1995)}
+    _install_power(monkeypatch, "temperature", annual)
+    response = client.get("/api/trend", params=_params(), headers={"Accept": accept})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == expected

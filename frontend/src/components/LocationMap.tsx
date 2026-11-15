@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { GeoJSON, MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { GeoJSON, ImageOverlay, MapContainer, Marker, Polyline, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { LocateFixed } from 'lucide-react'
 import L, { type LatLngExpression, type LeafletMouseEvent } from 'leaflet'
 import type { FeatureCollection } from 'geojson'
@@ -11,6 +11,15 @@ import { Button } from './ui/button'
 
 const WORLD_MAP = `${import.meta.env.BASE_URL}world.geojson`
 const ATTRIBUTION = '<a href="https://www.naturalearthdata.com/">Natural Earth</a>'
+const BLUE_MARBLE = `${import.meta.env.BASE_URL}blue-marble-mercator.webp`
+const MARBLE_CREDIT = '<a href="https://worldview.earthdata.nasa.gov/?l=BlueMarble_ShadedRelief">NASA Earth Observatory · Blue Marble</a>'
+const MERCATOR_EDGE = 85.0511287798
+const MARBLE_BOUNDS = L.latLngBounds([-MERCATOR_EDGE, -180], [MERCATOR_EDGE, 180])
+const GRATICULE: LatLngExpression[][] = [
+  ...Array.from({ length: 23 }, (_, i): LatLngExpression[] => [[-MERCATOR_EDGE, 15 * (i - 11)], [MERCATOR_EDGE, 15 * (i - 11)]]),
+  ...Array.from({ length: 11 }, (_, i): LatLngExpression[] => [[15 * (i - 5), -180], [15 * (i - 5), 180]]),
+]
+const GRID_STYLE = { color: '#c0c0c0', opacity: 0.22, weight: 1, dashArray: '2 5' }
 
 export interface MapSelection {
   latitude: number
@@ -20,7 +29,8 @@ export interface MapSelection {
 const ZOOM = 4
 const MIN_ZOOM = 2
 const MAX_ZOOM = 12
-const WORLD_STYLE = { color: '#636d78', weight: 1, fillColor: '#303740', fillOpacity: 1 }
+const WORLD_STYLE = { color: '#6d6d6d', weight: 1, fillColor: '#363636', fillOpacity: 1 }
+const MARBLE_BORDER_STYLE = { color: '#cccccc', weight: 0.85, opacity: 0.55, fillOpacity: 0 }
 
 /** High-contrast marker for the selected grid point. */
 const pointIcon = L.divIcon({
@@ -66,6 +76,7 @@ function MapControls({ selection, focusRequest }: { selection: MapSelection; foc
 
   return (
     <Button type="button" variant="outline" size="sm" onClick={focusPoint}
+      ref={element => { if (element) L.DomEvent.disableClickPropagation(element) }}
       className="absolute right-2 top-2 z-[600] h-10 bg-panel">
       <LocateFixed aria-hidden="true" />
       {ru.map.center}
@@ -76,7 +87,8 @@ function MapControls({ selection, focusRequest }: { selection: MapSelection; foc
 function ClickCatcher({ onSelect }: { onSelect: (selection: MapSelection) => void }) {
   useMapEvents({
     click(event: LeafletMouseEvent) {
-      onSelect({ latitude: event.latlng.lat, longitude: event.latlng.lng })
+      const point = event.latlng.wrap()
+      onSelect({ latitude: point.lat, longitude: point.lng })
     },
   })
   return null
@@ -103,6 +115,7 @@ export const LocationMap = memo(function LocationMap({
   const initialCenter = useRef(center)
   const [world, setWorld] = useState<FeatureCollection | null>(null)
   const [mapError, setMapError] = useState(false)
+  const [marbleReady, setMarbleReady] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -132,17 +145,21 @@ export const LocationMap = memo(function LocationMap({
         markerZoomAnimation={false}
         fadeAnimation={false}
         trackResize={false}
-        className="h-full w-full"
+        className="location-map h-full w-full"
       >
         <ZoomControl zoomInTitle={ru.map.zoomIn} zoomOutTitle={ru.map.zoomOut} />
+        <ImageOverlay url={BLUE_MARBLE} bounds={MARBLE_BOUNDS} pane="tilePane" className="location-map-imagery"
+          interactive={false} alt="" attribution={marbleReady ? MARBLE_CREDIT : undefined}
+          eventHandlers={{ load: () => setMarbleReady(true) }} />
         {world && (
           <GeoJSON
             data={world}
             interactive={false}
             attribution={ATTRIBUTION}
-            style={WORLD_STYLE}
+            style={marbleReady ? MARBLE_BORDER_STYLE : WORLD_STYLE}
           />
         )}
+        <Polyline positions={GRATICULE} pathOptions={GRID_STYLE} interactive={false} />
         <ClickCatcher onSelect={onSelect} />
         <MapControls selection={selection} focusRequest={focusRequest} />
         <Marker position={center} icon={selectionLabel === 'B' ? otherIcon : pointIcon} keyboard={false} title={selectionLabel ?? ru.map.selected}>

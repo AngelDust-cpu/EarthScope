@@ -75,7 +75,8 @@ endpoint and validated parameters, including the NASA data cache when
 configured. No language model runs during export. Install a Cyrillic-capable
 Arial or DejaVu Sans font on the backend host before enabling PDF exports.
 API callers can send `Accept: application/pdf` to the matching analysis
-endpoint with the same query parameters or JSON body. A PDF reruns the
+endpoint with the same query parameters or JSON body. When both JSON and PDF
+are listed explicitly, equal preference selects JSON. A PDF reruns the
 validated analysis against the currently available dataset. Record the
 result and source metadata if you need to reproduce an exact historical
 export after an upstream data or software update.
@@ -145,9 +146,9 @@ Use `/models` in the interactive session to switch the parent model. If a pinned
 
 ## EarthScope 2.5: interactive regional trend map
 
-Choose **Весь мир** in the map's region selector to open the global overview. It covers 1990–2025 at NASA POWER's native 0.5° × 0.625° grid spacing, with temperature, precipitation, and a global BY significance layer. The user interface clips the polar caps at ±85.05° in Web Mercator. Click a cell to view its annual series and trend statistics. The world uses NASA's annual LST archive, while the Kyrgyzstan layer retains its separate monthly/annual regional pipeline and selectable years.
+Open **Карта климатических трендов** to load the global overview. It covers 1990–2025 at NASA POWER's native 0.5° × 0.625° grid spacing, with temperature, precipitation, and a global BY significance layer. The user interface clips the polar caps at ±85.05° in Web Mercator. Click the map or enter coordinates to view an original cell's annual series and statistics. The world uses NASA's annual LST archive. The Kyrgyzstan monthly/annual regional pipeline remains available through its API.
 
-For a new installation, prepare the local archive from the project root with `uv run --with numcodecs==0.16.5 python scripts/build_global_power.py`. The preparation downloads 36 annual fields per variable from the [NASA POWER public archive](https://registry.opendata.aws/nasa-power/) and writes `global/annual.npz` under `EARTHSCOPE_CACHE_DIR` (default `.earthscope-cache`). Account credentials are unnecessary. Only the preparation script needs `numcodecs`. Startup, panning, and zooming use the local archive. World-level precipitation totals use NASA's annual mean daily rate multiplied by the number of calendar days. The global color scale saturates at the 98th percentile of absolute slopes. The cell panel reports the fitted value at full source precision before display rounding.
+For a new installation, prepare the local archive from the project root with `uv run --with numcodecs==0.16.5 python scripts/build_global_power.py`. The preparation downloads 36 annual fields per variable from the [NASA POWER public archive](https://registry.opendata.aws/nasa-power/) and writes `global/annual.npz` under `EARTHSCOPE_CACHE_DIR` (default `.earthscope-cache`). Account credentials are unnecessary. Only the preparation script needs `numcodecs`. Startup, panning, and zooming use the local archive. The builder rounds the annual mean daily precipitation rate to 0.01 mm/day before multiplying by the number of calendar days. The global color scale saturates at the 98th percentile of absolute slopes. The cell panel uses statistics computed from that prepared archive.
 
 A bounded map is available for 39-44 deg N and 69-81 deg E. It shows real NASA POWER Regional Monthly/Annual MERRA-2 cell centers, with temperature trends in deg C/decade or annual precipitation trends in mm/decade. The selected annual period defaults to 1990-2025. Press **Build map** to request a layer; moving, zooming, and selecting cells do not call NASA. Select a cell to inspect its yearly values, trend, confidence interval, p-value, BY-adjusted q-value, completeness, and provenance. The selected center can be passed to the existing point analysis explicitly.
 

@@ -18,6 +18,7 @@ import { AnomalyResult, SeasonalResult } from './ClimateResults'
 import { ExtremesResult } from './ExtremesResult'
 import { DashboardBody } from './DashboardBody'
 import { LocationMap } from './LocationMap'
+import { AnalysisControlsPortal } from './AnalysisControlsPortal'
 import { Button } from './ui/button'
 import { Field, Select, TextInput } from './ui/field'
 import { Alert } from './ui/feedback'
@@ -88,6 +89,7 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
   const [saved, setSaved] = useState<Partial<Record<Question, { key: string; data: TrendResponse | CompareResponse | ClimateResult }>>>({})
   const request = useRef<AbortController | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  const parameters = useRef<HTMLElement>(null)
   const previousStep = useRef(step)
   const isCompare = question === 'compare'
   const isClimate = question === 'anomalies' || question === 'seasonal' || question === 'extremes' || question === 'heatwaves'
@@ -147,7 +149,7 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
   }, [active])
   useEffect(() => () => { request.current?.abort(); request.current = null }, [])
   useEffect(() => {
-    if (active && previousStep.current !== step) heading.current?.focus()
+    if (active && previousStep.current !== step) (parameters.current ?? heading.current)?.focus()
     previousStep.current = step
   }, [step, active])
   useEffect(() => { setCancelled(false) }, [key])
@@ -232,9 +234,9 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
           </Button>)}
       </fieldset>
     </section>
-    {active && (step === 1 || step === 2) && <div>
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-4">
+    {active && (step === 1 || step === 2) && <>
+      <AnalysisControlsPortal>
+        <section ref={parameters} tabIndex={-1} className="point-controls space-y-4" aria-label="Параметры исследования детектива">
           <p className="text-sm">{variableLabel(selectedVariable)} · {start}–{end} UTC</p>
           {(isCompare || question === 'seasonal') && step === 1 && <Field htmlFor="detective-variable" label={isCompare ? 'Переменная сравнения' : 'Показатель'}>
             <Select id="detective-variable" value={variable} onChange={e => setVariable(e.target.value as Variable)}>
@@ -273,7 +275,8 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
           {step === 2 && current && <Button variant="outline" onClick={() => setStep(3)}>Открыть сохранённый ответ</Button>}
           {coverage.loading && <p role="status" className="text-sm text-muted">Проверяем доступный период…</p>}
           {coverage.error && <Button variant="outline" onClick={coverage.retry}>Повторить проверку периода</Button>}
-        </div>
+        </section>
+      </AnalysisControlsPortal>
         <section hidden={step !== 1} aria-label="Карта выбора координат" className="min-w-0">
           {active && step === 1 && <LocationMap selection={selected.coordinates} onSelect={p => selected.setFromMap(p.latitude, p.longitude)}
             focusRequest={focus} selectionLabel={isCompare ? point : 'A'}
@@ -281,8 +284,7 @@ export function DetectiveMode({ active, coverage }: { active: boolean; coverage:
             describedBy="detective-map-hint" className="h-[300px] w-full sm:h-[440px]" />}
           <p id="detective-map-hint" className="mt-2 text-xs text-muted">Клик меняет только активную точку. Для клавиатуры используйте поля координат или пресеты. Запрос анализа не отправляется.</p>
         </section>
-      </div>
-    </div>}
+    </>}
     {active && step === 3 && <DetectiveReportContext.Provider value={true}><section aria-label="Ответ детектива" className="space-y-4">
       <p className="text-sm">{variableLabel(selectedVariable)} · {start}–{end} UTC · A: {formatCoordinate(a.coordinates.latitude)}, {formatCoordinate(a.coordinates.longitude)}°
         {isCompare ? ` · B: ${formatCoordinate(b.coordinates.latitude)}, ${formatCoordinate(b.coordinates.longitude)}°` : ''}</p>

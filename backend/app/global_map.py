@@ -27,7 +27,20 @@ def _calculate(path, stamp, variable):
         version = str(archive['version'])
         if values.shape != (len(YEARS), *GRID_SHAPE) or tuple(archive['years']) != YEARS:
             raise ValueError('Unexpected POWER annual archive dimensions or years')
+        for name, expected in (
+            ('lat', np.linspace(-90, 90, GRID_SHAPE[0])),
+            ('lon', np.linspace(-180, 180, GRID_SHAPE[1], endpoint=False)),
+        ):
+            coordinates = archive[name]
+            if coordinates.shape != expected.shape or not np.allclose(coordinates, expected, rtol=0, atol=1e-8):
+                raise ValueError(f'Unexpected POWER annual archive {name} coordinates')
     count = len(YEARS)
+    if not np.isfinite(values).all():
+        raise ValueError('POWER annual archive contains missing values')
+    # Broad physical limits also reject finite fill sentinels in old NPZ files.
+    lower, upper = (-150, 100) if variable == 'temperature' else (0, 100_000)
+    if values.min() < lower or values.max() > upper:
+        raise ValueError('POWER annual archive contains implausible values')
     x = np.arange(count, dtype='float64') - (count - 1) / 2
     sxx = np.dot(x, x)
     annual = values.reshape(count, -1).astype('float64')
@@ -40,22 +53,15 @@ def _calculate(path, stamp, variable):
     with np.errstate(invalid='ignore', divide='ignore'):
         standard_error = np.sqrt(variance * count / (count - 2)) / sxx
         p = np.where(standard_error > 0, 2 * stats.t.sf(np.abs(slopes / standard_error), count - 2), np.nan)
-    # All meridians converge at each pole. Count one test per pole, then repeat
-    # its adjusted value across the row for geographic display and lookup.
-    p_family = p.copy()
-    cols = GRID_SHAPE[1]
-    p_family[1:cols] = np.nan
-    p_family[-cols+1:] = np.nan
-    order = np.flatnonzero(np.isfinite(p_family))
-    order = order[np.argsort(p_family[order])]
+    # POWER can return distinct series even along a polar row.
+    order = np.flatnonzero(np.isfinite(p))
+    order = order[np.argsort(p[order])]
     size = len(order)
     harmonic = math.fsum(1 / rank for rank in range(1, size + 1))
     adjusted = np.full_like(p, np.nan)
     if size:
-        ranked = p_family[order] * size * harmonic / np.arange(1, size + 1)
+        ranked = p[order] * size * harmonic / np.arange(1, size + 1)
         adjusted[order] = np.minimum(1, np.minimum.accumulate(ranked[::-1])[::-1])
-    adjusted[:cols] = adjusted[0]
-    adjusted[-cols:] = adjusted[-cols]
     flags = np.where(np.isfinite(adjusted), (adjusted <= .10).astype('float32'), np.nan)
     limit = max(.001, float(np.nanquantile(np.abs(slopes * 10), .98)))
     layer = np.stack([slopes * 10, flags]).astype('<f4').tobytes()

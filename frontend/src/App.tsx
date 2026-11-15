@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, CalendarRange, ExternalLink, GitCompare, Globe2, Layers, MapPin, Radar, Search, SlidersHorizontal, Thermometer } from 'lucide-react'
+import { Activity, CalendarRange, ExternalLink, GitCompare, Globe2, Layers, MapPin, Search, Thermometer } from 'lucide-react'
+import { AnalysisControlsTarget } from './components/AnalysisControlsPortal'
 import { ControlPanel } from './components/ControlPanel'
 import { DashboardBody } from './components/DashboardBody'
 import { ComparisonBody } from './components/ComparisonBody'
@@ -49,6 +50,7 @@ export default function App() {
   const pointB = useCoordinates(REYKJAVIK)
   const [mode, setMode] = useState<Mode>('single')
   const [view, setView] = useState<View>('single')
+  const [controlsTarget, setControlsTarget] = useState<HTMLDivElement | null>(null)
   const detective = view === 'detective'
   const extremes = view === 'extremes'
   const regionalMap = view === 'regional-map'
@@ -147,19 +149,20 @@ export default function App() {
   return (
     <div className="min-h-screen bg-base text-ink">
       <a href={profile ? '#profile-workspace' : regionalMap ? '#regional-map-title' : extremes ? '#extremes-workspace' : detective ? '#detective-workspace' : climate ? '#climate-workspace' : '#workspace'} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:bg-card focus:p-3">{app.skip}</a>
-      <div className="research-shell">
+      <div className="research-shell framer-workstation" data-mode={view}>
+        <header className="station-header">
+          <div className="station-brand"><Globe2 size={28} strokeWidth={1.25} aria-hidden="true" /><span>EarthScope<span className="station-brand-dot">.</span></span></div>
+          <span className="station-header-caption">Исследование климата Земли</span>
+          <a className="station-source-link" href="https://power.larc.nasa.gov/" target="_blank" rel="noreferrer">NASA POWER <ExternalLink size={13} aria-hidden="true" /></a>
+        </header>
         <aside className="research-rail">
-          <div className="research-brand">
-            <div className="research-brand-mark"><Radar size={21} aria-hidden="true" /></div>
-            <div><div className="research-brand-name">{app.brand}</div><div className="research-brand-caption">Климатическая лаборатория</div></div>
-          </div>
           <nav aria-label={app.analysisMode} className="research-navigation">
             <fieldset disabled={loading}>
               <legend className="sr-only">{app.analysisMode}</legend>
               {navigation.map(group => <div key={group.label} className="research-nav-group">
                 <p className="research-nav-label">{group.label}</p>
                 {group.entries.map(({ value, label, Icon }) => <button key={value} type="button"
-                  className="research-nav-item" aria-pressed={view === value}
+                  className="research-nav-item" aria-label={label} aria-pressed={view === value}
                   onClick={() => {
                     if (value !== view) window.scrollTo(0, 0)
                     setView(value)
@@ -172,79 +175,77 @@ export default function App() {
               </div>)}
             </fieldset>
           </nav>
-          <div className="research-rail-source"><Globe2 size={15} aria-hidden="true" /><span>Данные реанализа MERRA-2</span></div>
+          <section hidden={view !== 'single' && view !== 'compare'} aria-label={app.controls} className="point-controls station-query">
+            {mode === 'compare' && <fieldset className="station-active-point">
+              <legend className="mb-2 text-sm font-semibold">Активная точка: карта, ввод и пресеты</legend>
+              {(['A', 'B'] as const).map(value => {
+                const point = value === 'A' ? pointA.coordinates : pointB.coordinates
+                return <label key={value} className="station-point-option">
+                  <input type="radio" name="active-point" checked={activePoint === value} onChange={() => setActivePoint(value)} />
+                  {value}: {formatCoordinate(point.latitude)}, {formatCoordinate(point.longitude)}°
+                </label>
+              })}
+              <p className="text-xs text-muted">Одна переменная и общий период для обеих точек. Запрос — только по кнопке.</p>
+            </fieldset>}
+            <ControlPanel coverage={coverageState.data} coverageError={coverageState.error} coordinates={coordinates}
+              pointLabel={mode === 'compare' ? `Точка ${activePoint} · WGS84, градусы` : undefined}
+              onCoordinatesCommit={handleCoordinatesCommit} variable={variable}
+              onVariableChange={next => { setCancelled(false); setVariable(next) }}
+              startYear={startYear} endYear={endYear} onRangeChange={(start, end) => {
+                setCancelled(false)
+                setStartYear(start)
+                setEndYear(end)
+              }}
+              onPreset={handlePreset} loading={loading} onSubmit={runAnalysis} />
+            {coverageState.loading && <p role="status" className="mt-3 text-xs text-muted">{app.checking}</p>}
+          </section>
+          <div ref={setControlsTarget} className="analysis-controls-slot min-w-0" />
+          <p className="station-rail-note">NASA POWER / MERRA-2</p>
         </aside>
         <div className="research-content">
-          <header className="research-toolbar">
-            <div className="research-breadcrumb"><span>{currentGroup?.label}</span><span aria-hidden="true">/</span><strong>{currentView?.label}</strong></div>
-            <a href="https://power.larc.nasa.gov/" target="_blank" rel="noreferrer">NASA POWER <ExternalLink size={13} aria-hidden="true" /></a>
-          </header>
           <div className="research-heading" data-view={view}>
             <h1>{currentView?.title}</h1>
             <p>{currentView?.hint}</p>
           </div>
           <div className="research-view">
-            <DetectiveMode active={detective} coverage={coverageState} />
-            <ClimateMode active={climate !== null} mode={climateMode} coverage={coverageState} />
-            <ExtremesMode active={extremes} />
-            <ProfileMode active={profile} coverage={coverageState} />
-            <RegionalTrendMapMode hidden={!regionalMap} />
+            <AnalysisControlsTarget.Provider value={controlsTarget}>
+              <DetectiveMode active={detective} coverage={coverageState} />
+              <ClimateMode active={climate !== null} mode={climateMode} coverage={coverageState} />
+              <ExtremesMode active={extremes} />
+              <ProfileMode active={profile} coverage={coverageState} />
+              <RegionalTrendMapMode hidden={!regionalMap} />
+            </AnalysisControlsTarget.Provider>
             <div hidden={profile || regionalMap || extremes || detective || climate !== null}>
-            <div className="point-workbench point-primary">
-              <section aria-labelledby="map-heading" className="point-map">
-                <div className="point-map-header">
-                  <h2 id="map-heading"><Globe2 size={16} aria-hidden="true" />{app.map}</h2>
-                  <span className="font-mono text-xs">{formatCoordinate(coordinates.latitude)} / {formatCoordinate(coordinates.longitude)} · WGS84</span>
-                </div>
-                <LocationMap selection={coordinates} onSelect={handleMapSelect} focusRequest={focusRequest} describedBy="map-hint"
-                  selectionLabel={mode === 'compare' ? activePoint : undefined}
-                  otherSelection={mode === 'compare' ? { ...(activePoint === 'A' ? pointB.coordinates : pointA.coordinates), label: activePoint === 'A' ? 'B' : 'A' } : undefined}
-                  className="point-map-viewport" />
-                <p id="map-hint" className="point-map-hint">{mode === 'compare' ? `Клик меняет только точку ${activePoint}. Координаты можно ввести с клавиатуры. ` : ''}{app.mapHint}</p>
-              </section>
-              <aside aria-label={app.controls} className="point-controls">
-                <SlidersHorizontal className="point-controls-icon" size={16} aria-hidden="true" />
-                {mode === 'compare' && <fieldset className="mb-5 space-y-2">
-                  <legend className="mb-2 text-sm font-semibold">Активная точка: карта, ввод и пресеты</legend>
-                  {(['A', 'B'] as const).map(value => {
-                    const point = value === 'A' ? pointA.coordinates : pointB.coordinates
-                    return <label key={value} className="flex min-h-10 items-center gap-2 text-xs">
-                      <input type="radio" name="active-point" checked={activePoint === value} onChange={() => setActivePoint(value)} />
-                      {value}: {formatCoordinate(point.latitude)}, {formatCoordinate(point.longitude)}°
-                    </label>
-                  })}
-                  <p className="text-xs text-muted">Одна переменная и общий период для обеих точек. Запрос — только по кнопке.</p>
-                </fieldset>}
-                <ControlPanel coverage={coverageState.data} coverageError={coverageState.error} coordinates={coordinates}
-                  pointLabel={mode === 'compare' ? `Точка ${activePoint} · WGS84, градусы` : undefined}
-                  onCoordinatesCommit={handleCoordinatesCommit} variable={variable}
-                  onVariableChange={next => { setCancelled(false); setVariable(next) }}
-                  startYear={startYear} endYear={endYear} onRangeChange={(start, end) => {
-                    setCancelled(false)
-                    setStartYear(start)
-                    setEndYear(end)
-                  }}
-                  onPreset={handlePreset} loading={loading} onSubmit={runAnalysis} />
-                {coverageState.loading && <p role="status" className="mt-3 text-xs text-muted">{app.checking}</p>}
-              </aside>
-              <main id="workspace" tabIndex={-1} className="point-results">
-                <h2 className="mb-3 text-xl font-semibold tracking-tight">{app.results}</h2>
-                <div className="analysis-status mb-4 space-y-2 text-sm text-secondary">
-                  <div role="status" className="space-y-1">
-                    {currentState.loading ? <><p>{app.active}</p><p>{submitted && queryLabel(submitted)}</p>{currentState.data && <p>{app.previous}</p>}</>
-                      : cancelled ? <p>{app.cancelled}</p> : dirty ? <p>{app.draft}</p> : null}
+              <div className="point-workbench point-primary">
+                <section aria-labelledby="map-heading" className="point-map">
+                  <div className="point-map-header">
+                    <h2 id="map-heading">Область исследования</h2>
+                    <span className="font-mono text-xs">{formatCoordinate(coordinates.latitude)} / {formatCoordinate(coordinates.longitude)} · WGS84</span>
                   </div>
-                  {loading && <Button variant="outline" size="sm" onClick={cancelAnalysis}>{app.cancel}</Button>}
-                </div>
-                {mode === 'compare' ? <ComparisonBody
-                  state={coverageState.error ? { ...compareState, error: coverageState.error, loading: false } : compareState}
-                  onRetry={coverageState.error ? coverageState.retry : () => { if (submitted) void executeAnalysis(submitted) }} />
-                : <DashboardBody coverage={coverageState.data}
-                  state={coverageState.error ? { ...trendState, error: coverageState.error, loading: false } : trendState}
-                  onRetry={coverageState.error ? coverageState.retry : () => { if (submitted) void executeAnalysis(submitted) }}
-                  metaDescription={metaDescription} />}
-              </main>
-            </div>
+                  <LocationMap selection={coordinates} onSelect={handleMapSelect} focusRequest={focusRequest} describedBy="map-hint"
+                    selectionLabel={mode === 'compare' ? activePoint : undefined}
+                    otherSelection={mode === 'compare' ? { ...(activePoint === 'A' ? pointB.coordinates : pointA.coordinates), label: activePoint === 'A' ? 'B' : 'A' } : undefined}
+                    className="point-map-viewport" />
+                  <p id="map-hint" className="point-map-hint">{mode === 'compare' ? `Клик меняет только точку ${activePoint}. Координаты можно ввести с клавиатуры. ` : ''}{app.mapHint}</p>
+                </section>
+                <main id="workspace" tabIndex={-1} className="point-results">
+                  <h2 className="mb-3 text-xl font-semibold tracking-tight">{app.results}</h2>
+                  <div className="analysis-status mb-4 space-y-2 text-sm text-secondary">
+                    <div role="status" className="space-y-1">
+                      {currentState.loading ? <><p>{app.active}</p><p>{submitted && queryLabel(submitted)}</p>{currentState.data && <p>{app.previous}</p>}</>
+                        : cancelled ? <p>{app.cancelled}</p> : dirty ? <p>{app.draft}</p> : null}
+                    </div>
+                    {loading && <Button variant="outline" size="sm" onClick={cancelAnalysis}>{app.cancel}</Button>}
+                  </div>
+                  {mode === 'compare' ? <ComparisonBody
+                    state={coverageState.error ? { ...compareState, error: coverageState.error, loading: false } : compareState}
+                    onRetry={coverageState.error ? coverageState.retry : () => { if (submitted) void executeAnalysis(submitted) }} />
+                  : <DashboardBody coverage={coverageState.data}
+                    state={coverageState.error ? { ...trendState, error: coverageState.error, loading: false } : trendState}
+                    onRetry={coverageState.error ? coverageState.retry : () => { if (submitted) void executeAnalysis(submitted) }}
+                    metaDescription={metaDescription} showInterpretation />}
+                </main>
+              </div>
             </div>
           </div>
         </div>
