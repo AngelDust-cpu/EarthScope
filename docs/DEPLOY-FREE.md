@@ -1,34 +1,27 @@
-# Temporary hosting
+# Temporary Railway deployment
 
-## Cloudflare Pages
+Public site: https://earthscope.up.railway.app
 
-Connect AngelDust-cpu/EarthScope, main branch. Choose project name earthscope if available, then earthscope-lab. The assigned address depends on availability and is not reserved by this document.
+The Railway project `endearing-insight` runs the `EarthScope` service from the public GitHub repository `AngelDust-cpu/EarthScope`, branch `main`. The deployed application commit is `69ff842`.
 
-- Root directory `frontend`
-- Build command `npm ci --ignore-scripts && npm run build`
-- Output directory `dist`
-- Node.js 22
-- Build variable `VITE_API_BASE_URL` must equal the deployed backend HTTPS origin
+## Build and runtime
 
-The `_redirects` file supports direct visits and refreshes on `/research` routes. Rebuild after changing the API origin.
+The root Dockerfile builds the Vite frontend with Node.js 22 and installs locked Python dependencies with Python 3.12. FastAPI serves the frontend and API on the same origin. Direct `/research` routes return the SPA entry point. The server listens on Railway's injected `PORT`, with one worker. `railway.json` configures Docker builds and `/api/health` as the health check.
 
-## Koyeb
+The image includes DejaVu fonts for Cyrillic PDF export. During the build, `scripts/build_global_power.py` prepares NASA POWER annual data at `/app/data/global/annual.npz`. A failed archive preparation fails the build. Daily request caches use the writable ephemeral `/app/data` directory. A new container starts with the baked annual archive.
 
-Connect the same repository. Build with the root Dockerfile, exposed HTTP port 8000, health check `/api/health`. Select the Free instance explicitly, one worker. Set `EARTHSCOPE_ALLOWED_ORIGINS` to the exact final frontend HTTPS origin. Set `PORT=8000` if the platform does not supply a port. Cache uses the ephemeral `/tmp/earthscope-cache` directory. Free resources and domain availability must be confirmed in the account before deployment.
+## Updating
 
-The image includes Cyrillic fonts for PDF generation and locked production Python dependencies. Docker is unavailable in the current development environment, so image execution remains unverified until the remote build.
+The service was created using the public repository URL. In the Railway service settings, use **Check for updates**, review the upstream commit, and select **Update**. Automatic deployment from GitHub has not been configured. Check the deployment logs and health status after each update.
 
-## Global map dependency
+## Free trial
 
-The Docker build runs the existing NASA POWER archive preparation script with numcodecs 0.16.5, writing `/app/data/global/annual.npz` into the image. A build fails if preparation fails. The same directory holds the ephemeral writable daily cache at runtime. The archive can be reconstructed from the image on restart. Local Windows calculation of both map variables measured about 387 MiB peak working set and 164 MiB retained memory. This excludes the full server's concurrent workload and is not a Linux/Koyeb measurement. Verify map and concurrent point analysis on the remote 512 MiB instance before sharing.
+The account displayed a $5 trial credit valid for up to 30 days on 2026-11-15. Usage can exhaust the credit earlier. Continued operation depends on the account's current limits and remaining credit. The chosen address is a Railway-provided subdomain. No purchased domain was connected.
 
-## Verification before sharing
+## Verification
 
-Check health, real point analysis, profile partial errors, CSV/PDF and Cyrillic, heatwaves, direct `/research/profile` navigation, mobile layout, source attribution, and both world variables. Confirm exact CORS origin, resource limits and no paid instance. Set the final address only after the provider confirms deployment. An owned domain requires separate domain registration and DNS access.
+On 2026-11-15, the public homepage and direct `/research/profile` route returned HTTP 200. `/api/health` returned HTTP 200. A real NASA POWER temperature trend for Bishkek, 2015–2020, exported a two-page PDF with extractable Cyrillic text over HTTPS.
 
-Provider documentation checked 2026-11-15:
+## Data source
 
-- https://www.koyeb.com/docs/reference/instances
-- https://developers.cloudflare.com/pages/configuration/custom-domains/
-
-Account creation and login are completed by the owner. Secrets must stay in provider secret settings.
+NASA POWER annual archive source: https://registry.opendata.aws/nasa-power/ (accessed 2026-11-15). Point requests use NASA POWER. Preserve source attribution and scientific limitations shown in each analysis.
