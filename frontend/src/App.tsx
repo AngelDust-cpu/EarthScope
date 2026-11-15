@@ -6,6 +6,7 @@ import { ComparisonBody } from './components/ComparisonBody'
 import { DetectiveMode } from './components/DetectiveMode'
 import { ClimateMode, type ClimateModeName } from './components/ClimateMode'
 import { ExtremesMode } from './components/ExtremesMode'
+import { ProfileMode } from './components/ProfileMode'
 import RegionalTrendMapMode from './components/RegionalTrendMapMode'
 import { LocationMap } from './components/LocationMap'
 import { Button } from './components/ui/button'
@@ -25,6 +26,7 @@ const analysisModes = [
   { value: 'seasonal', label: app.modes.seasonal, Icon: Satellite },
   { value: 'extremes', label: 'Погодные экстремумы', Icon: Thermometer },
   { value: 'regional-map', label: 'Карта климатических трендов', Icon: Layers },
+  { value: 'profile', label: 'Климатический профиль', Icon: Layers },
 ] as const
 
 type Mode = 'single' | 'compare'
@@ -41,6 +43,7 @@ export default function App() {
   const [detective, setDetective] = useState(false)
   const [extremes, setExtremes] = useState(false)
   const [regionalMap, setRegionalMap] = useState(false)
+  const [profile, setProfile] = useState(false)
   const [climate, setClimate] = useState<ClimateModeName | null>(null)
   const [climateMode, setClimateMode] = useState<ClimateModeName>('anomalies')
   const [activePoint, setActivePoint] = useState<'A' | 'B'>('A')
@@ -132,7 +135,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-base text-ink">
-      <a href={regionalMap ? '#regional-map-title' : extremes ? '#extremes-workspace' : detective ? '#detective-workspace' : climate ? '#climate-workspace' : '#workspace'} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:bg-card focus:p-3">{app.skip}</a>
+      <a href={profile ? '#profile-workspace' : regionalMap ? '#regional-map-title' : extremes ? '#extremes-workspace' : detective ? '#detective-workspace' : climate ? '#climate-workspace' : '#workspace'} className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:bg-card focus:p-3">{app.skip}</a>
       <header className="border-b border-line bg-panel">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
@@ -145,17 +148,18 @@ export default function App() {
       <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6">
         <fieldset className="min-w-0" disabled={loading}>
           <legend className="mb-2 text-xs font-medium text-muted">{app.analysisMode}</legend>
-          <div className="grid w-full grid-cols-2 gap-1 rounded-md border border-line bg-panel p-1 sm:w-fit sm:grid-cols-3 xl:grid-cols-7">
+          <div className="grid w-full grid-cols-2 gap-1 rounded-md border border-line bg-panel p-1 sm:w-fit sm:grid-cols-3 xl:grid-cols-4">
             {analysisModes.map(({ value, label, Icon }) =>
               <button key={value} type="button"
                   className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-sm border border-transparent px-2 py-2 text-center text-xs font-medium text-secondary transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-60 aria-pressed:border-action aria-pressed:bg-raised aria-pressed:text-ink sm:min-h-10 sm:px-4 sm:text-sm"
-                  aria-pressed={value === 'regional-map' ? regionalMap : value === 'extremes' ? extremes : value === 'detective' ? detective : value === 'anomalies' || value === 'seasonal' ? climate === value : !regionalMap && !extremes && !detective && !climate && mode === value}
+                  aria-pressed={value === 'profile' ? profile : value === 'regional-map' ? regionalMap : value === 'extremes' ? extremes : value === 'detective' ? detective : value === 'anomalies' || value === 'seasonal' ? climate === value : !profile && !regionalMap && !extremes && !detective && !climate && mode === value}
                   onClick={() => {
                     setDetective(value === 'detective')
                     setExtremes(value === 'extremes')
                     setRegionalMap(value === 'regional-map')
+                    setProfile(value === 'profile')
                     if (value === 'anomalies' || value === 'seasonal') { setClimate(value); setClimateMode(value) }
-                    else { setClimate(null); if (value !== 'detective' && value !== 'extremes' && value !== 'regional-map') setMode(value) }
+                    else { setClimate(null); if (value === 'single' || value === 'compare') setMode(value) }
                     setCancelled(false)
                   }}>
                 <Icon className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
@@ -167,8 +171,9 @@ export default function App() {
       <DetectiveMode active={detective} coverage={coverageState} />
       <ClimateMode active={climate !== null} mode={climateMode} coverage={coverageState} />
       <ExtremesMode active={extremes} />
+      <ProfileMode active={profile} coverage={coverageState} />
       <RegionalTrendMapMode hidden={!regionalMap} />
-      <div hidden={regionalMap || extremes || detective || climate !== null}>
+      <div hidden={profile || regionalMap || extremes || detective || climate !== null}>
       <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)] items-start lg:grid-cols-[20rem_minmax(0,1fr)]">
         <section aria-labelledby="map-heading" className="min-w-0 border-b border-line p-4 sm:p-6 lg:col-start-2 lg:row-start-1">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

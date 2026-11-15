@@ -29,7 +29,7 @@ from typing import Literal
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.concurrency import run_in_threadpool
 
-from . import analysis, climate, extremes, regional_map
+from . import analysis, climate, extremes, regional_map, profile
 from .power import PowerError, load_daily
 from .regional_schemas import RegionalMapResponse, RegionalRegionsResponse
 from . import global_map
@@ -918,6 +918,7 @@ def create_app() -> FastAPI:
     _register_exception_handlers(application)
     application.router.route_class = ResearchReportRoute
     _register_routes(application)
+    profile.register_routes(application)
     return application
 
 

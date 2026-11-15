@@ -154,3 +154,7 @@ A bounded map is available for 39-44 deg N and 69-81 deg E. It shows real NASA P
 The NASA regional product is an LST monthly/annual product and is not identical to the existing Daily Point UTC product. The first full live query returned 209 cells with 36 complete annual values per cell for both variables; later layers use the local raw-response and processed-analysis caches. The map is a limited demonstration region, not global coverage. Statistical limits and aggregation rules are in [the regional API contract](docs/REGIONAL-MAP-API.md) and [scientific method](docs/SCIENTIFIC_METHOD.md).
 
 Local checks for this milestone: `python -m pytest backend/tests/test_regional_data.py backend/tests/test_regional_map_api.py backend/tests/test_extremes_stats.py`; frontend `tsc --noEmit` and Vite production build. These tests use synthetic fixtures explicitly isolated from production data. Real observations are only read from NASA POWER.
+
+## Климатический профиль · EarthScope 2.8
+
+Раздел «Климатический профиль» объединяет температуру, осадки, аномалии, сезоны и пороговые события для одной точки. Выберите точку, период, базу и пороги, затем запустите расчёт. Карта меняет выбор точки. Научные расчёты выполняются по кнопке. Подробности и ограничения описаны в [руководстве профиля](docs/CLIMATE-PROFILE.md).

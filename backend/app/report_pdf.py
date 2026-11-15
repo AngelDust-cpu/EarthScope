@@ -473,13 +473,13 @@ def _year_ranges(years: Sequence[int]) -> str:
 
 
 _VARIABLE_LABEL = {
-    "temperature": "температура воздуха (T2M)",
-    "precipitation": "атмосферные осадки (PRECTOTCORR)",
+    "temperature": "температура воздуха (T2M, temperature)",
+    "precipitation": "атмосферные осадки (PRECTOTCORR, precipitation)",
 }
 
 _AGGREGATION_LABEL = {
-    "mean": "среднее суточных значений",
-    "sum": "сумма суточных значений",
+    "mean": "среднее суточных значений (mean)",
+    "sum": "сумма суточных значений (sum)",
 }
 
 _SLOPE_UNIT = {
@@ -534,7 +534,8 @@ _EVENT_DEFINITION = {
 
 
 def _period_name(period: str) -> str:
-    return _SEASON_LABEL.get(period) or _MONTH_LABEL.get(period) or period
+    label = _SEASON_LABEL.get(period) or _MONTH_LABEL.get(period)
+    return f"{label} ({period})" if label else period
 
 
 def _kind_title(kind: str) -> str:
@@ -1300,6 +1301,7 @@ def _story_compare(model: CompareResponse) -> list[Any]:
                 ("Период", f"{point_a.start_year}–{point_b.end_year}"),
                 ("Единица", point_a.unit),
                 ("Общих полных лет", str(model.comparison.years_used)),
+                ("Метод сравнения", model.comparison.method),
             ]
         )
     )
@@ -1658,7 +1660,7 @@ def _story_extremes(model: ExtremesResponse) -> list[Any]:
     fitted = [
         (
             point.year,
-            None if point.fitted is None else point.fitted * 365.0,
+            point.fitted,
         )
         for point in model.series
     ]
@@ -1949,10 +1951,16 @@ def _metadata(kind: str, model: Any) -> tuple[str, str]:
             "EarthScope: ячейка мировой карты трендов",
             f"NASA POWER {model.parameter}, {model.unit}, архив {model.version}",
         )
-    variable = _VARIABLE_LABEL[model.variable]
+    if kind == "compare":
+        variable = _VARIABLE_LABEL[model.point_a.variable]
+    elif kind == "extremes":
+        variable = _EVENT_LABEL[model.event]
+    else:
+        variable = _VARIABLE_LABEL[model.variable]
+    period = model.point_a if kind == "compare" else model
     return (
         f"EarthScope: {_kind_title(kind)}",
-        f"{variable}; {model.start_year}–{model.end_year}; NASA POWER",
+        f"{variable}; {period.start_year}–{period.end_year}; NASA POWER",
     )
 
 
@@ -2029,5 +2037,6 @@ def render_report(kind: str, payload: dict) -> bytes:
         model = model_class.model_validate(dict(payload))
     except ValidationError as exc:
         raise InvalidReportPayload(kind, exc.errors()) from exc
+    _register_fonts()
     story = _STORY_BUILDERS[kind](model)
     return _render_pdf(kind, model, story)
