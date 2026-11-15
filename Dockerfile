@@ -1,3 +1,10 @@
+FROM node:22-bookworm-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -5,6 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     EARTHSCOPE_CACHE_DIR=/app/data \
     OPENBLAS_NUM_THREADS=1 \
     OMP_NUM_THREADS=1
+ENV EARTHSCOPE_FRONTEND_DIR=/app/frontend-dist
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core \
@@ -14,6 +22,7 @@ COPY pyproject.toml uv.lock ./
 RUN pip install --no-cache-dir uv \
     && uv sync --locked --no-dev
 COPY backend/app ./backend/app
+COPY --from=frontend /frontend/dist ./frontend-dist
 COPY scripts/build_global_power.py ./scripts/build_global_power.py
 RUN uv run --locked --no-dev --with numcodecs==0.16.5 python scripts/build_global_power.py
 RUN useradd --create-home earthscope \

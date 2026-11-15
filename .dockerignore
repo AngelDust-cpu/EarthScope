@@ -7,5 +7,10 @@
 !backend/app/**
 !scripts/
 !scripts/build_global_power.py
+!frontend/
+!frontend/**
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
 **/__pycache__/
 **/*.pyc

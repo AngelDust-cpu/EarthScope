@@ -998,6 +998,8 @@ def create_app() -> FastAPI:
     application.router.route_class = ResearchReportRoute
     _register_routes(application)
     profile.register_routes(application)
+    from .site import register_site
+    register_site(application)
     return application
 
 
